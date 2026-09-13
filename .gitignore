@@ -1,0 +1,19 @@
+# Visual Studio
+.vs/
+
+# VS Code
+.vscode/
+
+# Build
+bin/
+obj/
+
+# Arquivos pessoais do Visual Studio
+*.user
+*.suo
+
+# Logs
+*.log
+
+# Variáveis de ambiente
+.env
