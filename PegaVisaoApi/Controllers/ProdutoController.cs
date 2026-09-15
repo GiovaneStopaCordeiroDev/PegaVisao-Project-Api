@@ -61,10 +61,10 @@ namespace PegaVisaoApi.Controllers
         [HttpGet("{id}")]
         public ActionResult<ReadProdutoDto> RecuperarProdutoPorId(int id)
         {
-             var produto = _context.Produtos
-                .AsNoTracking()
-                .Include(p => p.Variacoes)
-                .FirstOrDefault(p => p.Id == id);
+            var produto = _context.Produtos
+               .AsNoTracking()
+               .Include(p => p.Variacoes)
+               .FirstOrDefault(p => p.Id == id);
 
             if (produto == null)
                 return NotFound();
@@ -74,10 +74,10 @@ namespace PegaVisaoApi.Controllers
             return Ok(readProdutoDto);
         }
 
-       [HttpGet]
+        [HttpGet]
         public ActionResult<IEnumerable<ReadProdutoDto>> RecuperarProdutos(
-            int skip = 0,
-            int take = 30)
+             int skip = 0,
+             int take = 30)
         {
             var inicio = DateTime.Now;
 
@@ -100,8 +100,52 @@ namespace PegaVisaoApi.Controllers
             return Ok(readProdutos);
         }
 
-       
 
+        [HttpPut("{id}")]
+        public IActionResult AlterarProduto(int id, UpdateProdutoDto dto)
+        {
+            var produto = _context.Produtos
+                .Include(p => p.Variacoes)
+                .FirstOrDefault(p => p.Id == id);
+
+            if (produto == null)
+                return NotFound();
+
+            produto.Nome = dto.Nome;
+            produto.Descricao = dto.Descricao;
+            produto.Preco = dto.Preco;
+            produto.ImagemPrincipal = dto.ImagemPrincipal;
+            produto.CategoriaId = dto.CategoriaId;
+
+            foreach (var variacaoDto in dto.Variacoes)
+            {
+                var variacaoExistente = produto.Variacoes
+                    .FirstOrDefault(v => v.Id == variacaoDto.Id);
+
+                if (variacaoExistente != null)
+                {
+                    variacaoExistente.Cor = variacaoDto.Cor;
+                    variacaoExistente.Tamanho = variacaoDto.Tamanho;
+                    variacaoExistente.Estoque = variacaoDto.Estoque;
+                }
+                else
+                {
+                    var novaVariacao = new VariacaoProduto
+                    {
+                        Cor = variacaoDto.Cor,
+                        Tamanho = variacaoDto.Tamanho,
+                        Estoque = variacaoDto.Estoque,
+                        ProdutoId = produto.Id
+                    };
+
+                    _context.VariacaoProdutos.Add(novaVariacao);
+                }
+            }
+
+            _context.SaveChanges();
+
+            return Ok(produto);
+        }
 
         [HttpDelete("{id}")]
         public IActionResult DeletarProduto(int id)
