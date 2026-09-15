@@ -14,8 +14,9 @@ namespace PegaVisaoApi.Controllers
         private PegaVisaoContext _context;
         private readonly IMapper _mapper;
 
-
-        public ProdutoController(PegaVisaoContext context, IMapper mapper)
+        public ProdutoController(
+            PegaVisaoContext context,
+            IMapper mapper)
         {
             _context = context;
             _mapper = mapper;
@@ -27,7 +28,6 @@ namespace PegaVisaoApi.Controllers
             Produto produto = _mapper.Map<Produto>(dto);
 
             _context.Produtos.Add(produto);
-
             _context.SaveChanges();
 
             foreach (var variacaoDto in dto.Variacoes)
@@ -49,7 +49,8 @@ namespace PegaVisaoApi.Controllers
                 .Include(p => p.Variacoes)
                 .FirstOrDefault(p => p.Id == produto.Id);
 
-            var readProdutoDto = _mapper.Map<ReadProdutoDto>(produtoCriado);
+            var readProdutoDto =
+                _mapper.Map<ReadProdutoDto>(produtoCriado);
 
             return CreatedAtAction(
                 nameof(RecuperarProdutoPorId),
@@ -62,22 +63,23 @@ namespace PegaVisaoApi.Controllers
         public ActionResult<ReadProdutoDto> RecuperarProdutoPorId(int id)
         {
             var produto = _context.Produtos
-               .AsNoTracking()
-               .Include(p => p.Variacoes)
-               .FirstOrDefault(p => p.Id == id);
+                .AsNoTracking()
+                .Include(p => p.Variacoes)
+                .FirstOrDefault(p => p.Id == id);
 
             if (produto == null)
                 return NotFound();
 
-            var readProdutoDto = _mapper.Map<ReadProdutoDto>(produto);
+            var readProdutoDto =
+                _mapper.Map<ReadProdutoDto>(produto);
 
             return Ok(readProdutoDto);
         }
 
         [HttpGet]
         public ActionResult<IEnumerable<ReadProdutoDto>> RecuperarProdutos(
-             int skip = 0,
-             int take = 30)
+            int skip = 0,
+            int take = 30)
         {
             var inicio = DateTime.Now;
 
@@ -90,19 +92,26 @@ namespace PegaVisaoApi.Controllers
 
             var fimBanco = DateTime.Now;
 
-            var readProdutos = _mapper.Map<List<ReadProdutoDto>>(produtos);
+            var readProdutos =
+                _mapper.Map<List<ReadProdutoDto>>(produtos);
 
             var fimTotal = DateTime.Now;
 
-            Console.WriteLine($"Banco: {(fimBanco - inicio).TotalMilliseconds} ms");
-            Console.WriteLine($"Total: {(fimTotal - inicio).TotalMilliseconds} ms");
+            Console.WriteLine(
+                $"Banco: {(fimBanco - inicio).TotalMilliseconds} ms"
+            );
+
+            Console.WriteLine(
+                $"Total: {(fimTotal - inicio).TotalMilliseconds} ms"
+            );
 
             return Ok(readProdutos);
         }
 
-
         [HttpPut("{id}")]
-        public IActionResult AlterarProduto(int id, UpdateProdutoDto dto)
+        public IActionResult AlterarProduto(
+            int id,
+            UpdateProdutoDto dto)
         {
             var produto = _context.Produtos
                 .Include(p => p.Variacoes)
@@ -111,25 +120,51 @@ namespace PegaVisaoApi.Controllers
             if (produto == null)
                 return NotFound();
 
+            // Atualiza os dados principais do produto
             produto.Nome = dto.Nome;
             produto.Descricao = dto.Descricao;
             produto.Preco = dto.Preco;
             produto.ImagemPrincipal = dto.ImagemPrincipal;
             produto.CategoriaId = dto.CategoriaId;
 
+
+            // IDs das variações que continuam no produto
+            var idsVariacoesRecebidas = dto.Variacoes
+                .Where(v => v.Id > 0)
+                .Select(v => v.Id)
+                .ToList();
+
+
+            // Remove as variações que foram excluídas no painel
+            var variacoesParaRemover = produto.Variacoes
+                .Where(v => !idsVariacoesRecebidas.Contains(v.Id))
+                .ToList();
+
+            foreach (var variacao in variacoesParaRemover)
+            {
+                _context.VariacaoProdutos.Remove(variacao);
+            }
+
+
+            // Atualiza as existentes e adiciona as novas
             foreach (var variacaoDto in dto.Variacoes)
             {
-                var variacaoExistente = produto.Variacoes
-                    .FirstOrDefault(v => v.Id == variacaoDto.Id);
-
-                if (variacaoExistente != null)
+                if (variacaoDto.Id > 0)
                 {
-                    variacaoExistente.Cor = variacaoDto.Cor;
-                    variacaoExistente.Tamanho = variacaoDto.Tamanho;
-                    variacaoExistente.Estoque = variacaoDto.Estoque;
+                    // Variação existente
+                    var variacaoExistente = produto.Variacoes
+                        .FirstOrDefault(v => v.Id == variacaoDto.Id);
+
+                    if (variacaoExistente != null)
+                    {
+                        variacaoExistente.Cor = variacaoDto.Cor;
+                        variacaoExistente.Tamanho = variacaoDto.Tamanho;
+                        variacaoExistente.Estoque = variacaoDto.Estoque;
+                    }
                 }
                 else
                 {
+                    // Nova variação
                     var novaVariacao = new VariacaoProduto
                     {
                         Cor = variacaoDto.Cor,
@@ -142,20 +177,36 @@ namespace PegaVisaoApi.Controllers
                 }
             }
 
+
             _context.SaveChanges();
 
-            return Ok(produto);
+
+            // Busca novamente para devolver o produto atualizado
+            var produtoAtualizado = _context.Produtos
+                .AsNoTracking()
+                .Include(p => p.Variacoes)
+                .FirstOrDefault(p => p.Id == id);
+
+            var readProdutoDto =
+                _mapper.Map<ReadProdutoDto>(produtoAtualizado);
+
+            return Ok(readProdutoDto);
         }
 
         [HttpDelete("{id}")]
         public IActionResult DeletarProduto(int id)
         {
-            var produto = _context.Produtos.FirstOrDefault(p => p.Id == id);
-            if (produto == null) return NotFound();
+            var produto = _context.Produtos
+                .FirstOrDefault(p => p.Id == id);
+
+            if (produto == null)
+                return NotFound();
+
             _context.Produtos.Remove(produto);
+
             _context.SaveChanges();
+
             return NoContent();
         }
     }
 }
-
