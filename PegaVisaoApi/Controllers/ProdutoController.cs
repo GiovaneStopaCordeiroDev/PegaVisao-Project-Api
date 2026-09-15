@@ -178,7 +178,23 @@ namespace PegaVisaoApi.Controllers
             }
 
 
-            _context.SaveChanges();
+            try
+                {
+                    _context.SaveChanges();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("========== ERRO AO ALTERAR PRODUTO ==========");
+                    Console.WriteLine(ex.ToString());
+                    Console.WriteLine("=============================================");
+
+                    return StatusCode(500, new
+                    {
+                        mensagem = "Erro ao alterar produto.",
+                        erro = ex.Message,
+                        detalhe = ex.InnerException?.Message
+                    });
+                }
 
 
             // Busca novamente para devolver o produto atualizado
