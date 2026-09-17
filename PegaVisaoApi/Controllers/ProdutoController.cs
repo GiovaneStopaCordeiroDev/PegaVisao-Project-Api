@@ -212,28 +212,16 @@ namespace PegaVisaoApi.Controllers
         [HttpDelete("{id}")]
         public IActionResult DeletarProduto(int id)
         {
-            try
-            {
-                var produto = _context.Produtos
-                    .FirstOrDefault(p => p.Id == id);
+            var produto = _context.Produtos
+                .FirstOrDefault(p => p.Id == id);
 
-                if (produto == null)
-                    return NotFound();
+            if (produto == null)
+                return NotFound();
 
-                _context.Produtos.Remove(produto);
-                _context.SaveChanges();
+            _context.Produtos.Remove(produto);
+            _context.SaveChanges();
 
-                return NoContent();
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new
-                {
-                    mensagem = "Erro ao excluir produto.",
-                    erro = ex.Message,
-                    inner = ex.InnerException?.Message
-                });
-            }
+            return NoContent();
         }
     }
 }
