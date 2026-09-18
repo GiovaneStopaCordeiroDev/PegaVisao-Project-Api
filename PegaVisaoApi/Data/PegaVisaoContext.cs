@@ -10,8 +10,8 @@
 
                 }
 
-                protected override void OnModelCreating(ModelBuilder modelBuilder) 
-                { 
+                protected override void OnModelCreating(ModelBuilder modelBuilder)
+                {
                     modelBuilder.Entity<Produto>()
                         .HasOne(produto => produto.Categoria)
                         .WithMany(categoria => categoria.Produtos)
@@ -35,16 +35,30 @@
                         .WithMany()
                         .HasForeignKey(item => item.VariacaoProdutoId)
                         .OnDelete(DeleteBehavior.Cascade);
-                }
-            
 
-                public DbSet<Produto> Produtos { get; set; }
-                public DbSet<Pedido> Pedidos  { get; set; }
-                public DbSet<Categoria> Categorias { get; set; }
-                public DbSet<ItemPedido> ItemPedidos { get; set; }
-                public DbSet<VariacaoProduto> VariacaoProdutos { get; set; }
+                    modelBuilder.Entity<Usuario>()
+                        .HasOne(usuario => usuario.Endereco)
+                        .WithOne(endereco => endereco.Usuario)
+                        .HasForeignKey<Endereco>(endereco => endereco.UsuarioId)
+                        .OnDelete(DeleteBehavior.Cascade);
+                    modelBuilder.Entity<Usuario>()
+                        .HasIndex(u => u.Email)
+                        .IsUnique();
 
-            }
+
+            base.OnModelCreating(modelBuilder);
+        }
+
+
+        public DbSet<Produto> Produtos { get; set; }
+        public DbSet<Pedido> Pedidos  { get; set; }
+        public DbSet<Categoria> Categorias { get; set; }
+        public DbSet<ItemPedido> ItemPedidos { get; set; }
+        public DbSet<VariacaoProduto> VariacaoProdutos { get; set; }
+        public DbSet<Usuario> Usuarios { get; set; }
+        public DbSet<Endereco> Enderecos { get; set; }
+
+    }
         }
 
 

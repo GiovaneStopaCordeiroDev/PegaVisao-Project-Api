@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using PegaVisaoApi.Data;
 using PegaVisaoApi.DTO_s;
 using PegaVisaoApi.Models;
+using Microsoft.AspNetCore.Authorization;
 
 namespace PegaVisaoApi.Controllers
 {
@@ -23,6 +24,8 @@ namespace PegaVisaoApi.Controllers
         }
 
         [HttpPost]
+        [Authorize(Roles = "Admin")]
+
         public IActionResult CriarProduto(CreateProdutoDto dto)
         {
             Produto produto = _mapper.Map<Produto>(dto);
