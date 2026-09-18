@@ -63,6 +63,7 @@ namespace PegaVisaoApi.Controllers
         }
 
         [HttpGet("{id}")]
+        
         public ActionResult<ReadProdutoDto> RecuperarProdutoPorId(int id)
         {
             var produto = _context.Produtos
@@ -112,6 +113,7 @@ namespace PegaVisaoApi.Controllers
         }
 
         [HttpPut("{id}")]
+        [Authorize(Roles = "Admin")]
         public IActionResult AlterarProduto(
             int id,
             UpdateProdutoDto dto)
@@ -213,6 +215,7 @@ namespace PegaVisaoApi.Controllers
         }
 
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin")]
         public IActionResult DeletarProduto(int id)
         {
             var produto = _context.Produtos

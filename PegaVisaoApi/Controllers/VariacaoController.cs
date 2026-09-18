@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using PegaVisaoApi.Data;
 using PegaVisaoApi.DTO_s;
 using PegaVisaoApi.Models;
+using Microsoft.AspNetCore.Authorization;
 
 namespace PegaVisaoApi.Controllers
 {
@@ -19,6 +20,7 @@ namespace PegaVisaoApi.Controllers
             _mapper = mapper;
         }
         [HttpPost]
+        [Authorize(Roles = "Admin")]
         public IActionResult CriarVariacao(CreateVariacaoDto dto)
         {
             VariacaoProduto Variacao = _mapper.Map<VariacaoProduto>(dto);
@@ -46,6 +48,7 @@ namespace PegaVisaoApi.Controllers
         }
 
         [HttpPut("{id}")]
+        [Authorize(Roles = "Admin")]
         public IActionResult AtualizaVariacao(int id, UpdateVariacaoDto dto)
         {
             var variacao = _context.VariacaoProdutos.FirstOrDefault(v => v.Id == id);
@@ -57,6 +60,7 @@ namespace PegaVisaoApi.Controllers
 
 
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin")]
         public IActionResult DeletarVariacao(int id)
         {
             var variacao = _context.VariacaoProdutos.FirstOrDefault(v => v.Id == id);
