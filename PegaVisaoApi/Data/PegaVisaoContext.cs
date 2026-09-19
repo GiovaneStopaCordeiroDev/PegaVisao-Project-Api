@@ -44,6 +44,11 @@
                     modelBuilder.Entity<Usuario>()
                         .HasIndex(u => u.Email)
                         .IsUnique();
+                    modelBuilder.Entity<Pedido>()
+                        .HasOne(p => p.Usuario)
+                        .WithMany()
+                        .HasForeignKey(p => p.UsuarioId)
+                        .OnDelete(DeleteBehavior.Restrict);
 
 
             base.OnModelCreating(modelBuilder);

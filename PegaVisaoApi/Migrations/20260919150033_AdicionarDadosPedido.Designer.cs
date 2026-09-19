@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using PegaVisaoApi.Data;
@@ -11,9 +12,11 @@ using PegaVisaoApi.Data;
 namespace PegaVisaoApi.Migrations
 {
     [DbContext(typeof(PegaVisaoContext))]
-    partial class PegaVisaoContextModelSnapshot : ModelSnapshot
+    [Migration("20260919150033_AdicionarDadosPedido")]
+    partial class AdicionarDadosPedido
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -36,7 +39,7 @@ namespace PegaVisaoApi.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Categorias", (string)null);
+                    b.ToTable("Categorias");
                 });
 
             modelBuilder.Entity("PegaVisaoApi.Models.Endereco", b =>
@@ -82,7 +85,7 @@ namespace PegaVisaoApi.Migrations
                     b.HasIndex("UsuarioId")
                         .IsUnique();
 
-                    b.ToTable("Enderecos", (string)null);
+                    b.ToTable("Enderecos");
                 });
 
             modelBuilder.Entity("PegaVisaoApi.Models.ItemPedido", b =>
@@ -111,7 +114,7 @@ namespace PegaVisaoApi.Migrations
 
                     b.HasIndex("VariacaoProdutoId");
 
-                    b.ToTable("ItemPedidos", (string)null);
+                    b.ToTable("ItemPedidos");
                 });
 
             modelBuilder.Entity("PegaVisaoApi.Models.Pedido", b =>
@@ -169,7 +172,7 @@ namespace PegaVisaoApi.Migrations
 
                     b.HasIndex("UsuarioId");
 
-                    b.ToTable("Pedidos", (string)null);
+                    b.ToTable("Pedidos");
                 });
 
             modelBuilder.Entity("PegaVisaoApi.Models.Produto", b =>
@@ -202,7 +205,7 @@ namespace PegaVisaoApi.Migrations
 
                     b.HasIndex("CategoriaId");
 
-                    b.ToTable("Produtos", (string)null);
+                    b.ToTable("Produtos");
                 });
 
             modelBuilder.Entity("PegaVisaoApi.Models.Usuario", b =>
@@ -233,7 +236,7 @@ namespace PegaVisaoApi.Migrations
                     b.HasIndex("Email")
                         .IsUnique();
 
-                    b.ToTable("Usuarios", (string)null);
+                    b.ToTable("Usuarios");
                 });
 
             modelBuilder.Entity("PegaVisaoApi.Models.VariacaoProduto", b =>
@@ -262,7 +265,7 @@ namespace PegaVisaoApi.Migrations
 
                     b.HasIndex("ProdutoId");
 
-                    b.ToTable("VariacaoProdutos", (string)null);
+                    b.ToTable("VariacaoProdutos");
                 });
 
             modelBuilder.Entity("PegaVisaoApi.Models.Endereco", b =>
