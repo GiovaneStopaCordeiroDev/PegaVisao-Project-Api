@@ -211,6 +211,52 @@ namespace PegaVisaoApi.Controllers
             return NoContent();
         }
 
+        [HttpPut("{id}/cancelar")]
+        [Authorize]
+        public IActionResult CancelarPedido(int id)
+        {
+            var usuarioIdClaim =
+                User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (!int.TryParse(usuarioIdClaim, out int usuarioId))
+            {
+                return Unauthorized();
+            }
+
+            var pedido = _context.Pedidos
+                .FirstOrDefault(p =>
+                    p.Id == id &&
+                    p.UsuarioId == usuarioId
+                );
+
+            if (pedido == null)
+            {
+                return NotFound(new
+                {
+                    mensagem = "Pedido não encontrado."
+                });
+            }
+
+            if (pedido.Status != Status.Pendente)
+            {
+                return BadRequest(new
+                {
+                    mensagem = "Este pedido não pode mais ser cancelado."
+                });
+            }
+
+            pedido.Status = Status.Cancelado;
+
+            _context.SaveChanges();
+
+            return Ok(new
+            {
+                mensagem = "Pedido cancelado com sucesso.",
+                pedidoId = pedido.Id,
+                status = pedido.Status.ToString()
+            });
+        }
+
         [HttpDelete("{id}")]
         [Authorize(Roles = "Admin")]
         public IActionResult DeletarPedido(int id)
