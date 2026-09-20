@@ -40,6 +40,12 @@
 
         public string FormaPagamento { get; set; }
 
+        public string? MercadoPagoOrderId { get; set; }
+
+        public string? MercadoPagoStatus { get; set; }
+
+        public string? MercadoPagoCheckoutUrl { get; set; }
+
         public virtual ICollection<ItemPedido> Itens { get; set; }
             = new List<ItemPedido>();
     }

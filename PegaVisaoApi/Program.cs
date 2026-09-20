@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using PegaVisaoApi.Data;
+using PegaVisaoApi.Services;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -93,6 +94,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 
 builder.Services.AddAuthorization();
+
+builder.Services.AddHttpClient<MercadoPagoService>();
 
 var app = builder.Build();
 

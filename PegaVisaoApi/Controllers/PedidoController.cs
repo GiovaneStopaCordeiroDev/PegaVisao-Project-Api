@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using PegaVisaoApi.Data;
 using PegaVisaoApi.DTO_s;
 using PegaVisaoApi.Models;
+using PegaVisaoApi.Services;
 using System.Security.Claims;
 
 namespace PegaVisaoApi.Controllers
@@ -15,42 +16,46 @@ namespace PegaVisaoApi.Controllers
     {
         private readonly PegaVisaoContext _context;
         private readonly IMapper _mapper;
+        private readonly MercadoPagoService _mercadoPagoService;
 
-        public PedidoController(PegaVisaoContext context, IMapper mapper)
+        public PedidoController(
+            PegaVisaoContext context,
+            IMapper mapper,
+            MercadoPagoService mercadoPagoService)
         {
             _context = context;
             _mapper = mapper;
+            _mercadoPagoService = mercadoPagoService;
         }
 
         [HttpPost]
         [Authorize]
-        public IActionResult CriarPedido(CreatePedidoDto dto)
+        public async Task<IActionResult> CriarPedido(CreatePedidoDto dto)
         {
             // Pega o ID do usuário diretamente do JWT
-            var usuarioIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var usuarioIdClaim =
+                User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
             if (!int.TryParse(usuarioIdClaim, out int usuarioId))
             {
                 return Unauthorized("Usuário não identificado.");
             }
 
-            // Diagnóstico temporário
-            Console.WriteLine($"UsuarioId vindo do JWT: {usuarioId}");
-
             // Verifica se o usuário realmente existe
-            var usuarioExiste = _context.Usuarios
-                .Any(u => u.Id == usuarioId);
-
-            Console.WriteLine($"Usuário encontrado no banco: {usuarioExiste}");
+            var usuarioExiste = await _context.Usuarios
+                .AnyAsync(u => u.Id == usuarioId);
 
             if (!usuarioExiste)
             {
                 return Unauthorized("Usuário não encontrado.");
             }
 
+            // Verifica se existem itens
             if (dto.Itens == null || dto.Itens.Count == 0)
             {
-                return BadRequest("O pedido precisa possuir pelo menos um item.");
+                return BadRequest(
+                    "O pedido precisa possuir pelo menos um item."
+                );
             }
 
             // Cria o pedido
@@ -83,9 +88,9 @@ namespace PegaVisaoApi.Controllers
                     );
                 }
 
-                var variacao = _context.VariacaoProdutos
+                var variacao = await _context.VariacaoProdutos
                     .Include(v => v.Produto)
-                    .FirstOrDefault(v =>
+                    .FirstOrDefaultAsync(v =>
                         v.Id == itemDto.VariacaoProdutoId
                     );
 
@@ -117,25 +122,88 @@ namespace PegaVisaoApi.Controllers
                     itemPedido.Quantidade;
             }
 
-            // O valor é calculado pelo servidor.
-            // Nunca confiamos no preço enviado pelo frontend.
+            // O preço é calculado pelo backend
             pedido.ValorTotal = valorTotal;
 
+            // Salva primeiro para gerar o ID do pedido
             _context.Pedidos.Add(pedido);
-            _context.SaveChanges();
 
-            var pedidoDto = _mapper.Map<ReadPedidoDto>(pedido);
+            await _context.SaveChangesAsync();
+
+            // Recarrega o pedido com todos os relacionamentos
+            // necessários para criar a Order no Mercado Pago
+            var pedidoComItens = await _context.Pedidos
+                .Include(p => p.Itens)
+                    .ThenInclude(i => i.VariacaoProduto)
+                        .ThenInclude(v => v.Produto)
+                .FirstOrDefaultAsync(p => p.Id == pedido.Id);
+
+            if (pedidoComItens == null)
+            {
+                return StatusCode(
+                    500,
+                    "Não foi possível recuperar o pedido criado."
+                );
+            }
+
+            try
+            {
+                // Cria a Order no Mercado Pago
+                var order =
+                    await _mercadoPagoService.CriarOrderAsync(
+                        pedidoComItens
+                    );
+
+                // Pega os dados retornados pelo Mercado Pago
+                var orderId = order
+                    .GetProperty("id")
+                    .GetString();
+
+                var mercadoPagoStatus = order
+                    .GetProperty("status")
+                    .GetString();
+
+                var checkoutUrl = order
+                    .GetProperty("checkout_url")
+                    .GetString();
+
+                // Salva os dados do Mercado Pago no pedido
+                pedidoComItens.MercadoPagoOrderId = orderId;
+                pedidoComItens.MercadoPagoStatus = mercadoPagoStatus;
+                pedidoComItens.MercadoPagoCheckoutUrl = checkoutUrl;
+
+                await _context.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                // O pedido continua salvo como Pendente,
+                // mas avisamos o frontend que o pagamento não foi criado.
+                return StatusCode(
+                    502,
+                    new
+                    {
+                        mensagem =
+                            "O pedido foi criado, mas não foi possível iniciar o pagamento.",
+                        erro = ex.Message,
+                        pedidoId = pedidoComItens.Id
+                    }
+                );
+            }
+
+            var pedidoDto =
+                _mapper.Map<ReadPedidoDto>(pedidoComItens);
 
             return CreatedAtAction(
                 nameof(RecuperarPedidoPorId),
-                new { id = pedido.Id },
+                new { id = pedidoComItens.Id },
                 pedidoDto
             );
         }
 
         [HttpGet("{id}")]
         [Authorize]
-        public ActionResult<ReadPedidoDto> RecuperarPedidoPorId(int id)
+        public async Task<ActionResult<ReadPedidoDto>>
+            RecuperarPedidoPorId(int id)
         {
             var usuarioIdClaim =
                 User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -145,11 +213,11 @@ namespace PegaVisaoApi.Controllers
                 return Unauthorized();
             }
 
-            var pedido = _context.Pedidos
+            var pedido = await _context.Pedidos
                 .Include(p => p.Itens)
                     .ThenInclude(i => i.VariacaoProduto)
                         .ThenInclude(v => v.Produto)
-                .FirstOrDefault(p =>
+                .FirstOrDefaultAsync(p =>
                     p.Id == id &&
                     p.UsuarioId == usuarioId
                 );
@@ -159,14 +227,16 @@ namespace PegaVisaoApi.Controllers
                 return NotFound();
             }
 
-            var pedidoDto = _mapper.Map<ReadPedidoDto>(pedido);
+            var pedidoDto =
+                _mapper.Map<ReadPedidoDto>(pedido);
 
             return Ok(pedidoDto);
         }
 
         [HttpGet]
         [Authorize]
-        public ActionResult<IEnumerable<ReadPedidoDto>> RecuperarPedidos()
+        public async Task<ActionResult<IEnumerable<ReadPedidoDto>>>
+            RecuperarPedidos()
         {
             var usuarioIdClaim =
                 User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -176,13 +246,13 @@ namespace PegaVisaoApi.Controllers
                 return Unauthorized();
             }
 
-            var pedidos = _context.Pedidos
+            var pedidos = await _context.Pedidos
                 .Include(p => p.Itens)
                     .ThenInclude(i => i.VariacaoProduto)
                         .ThenInclude(v => v.Produto)
                 .Where(p => p.UsuarioId == usuarioId)
                 .OrderByDescending(p => p.DataPedido)
-                .ToList();
+                .ToListAsync();
 
             var pedidosDto =
                 _mapper.Map<List<ReadPedidoDto>>(pedidos);
@@ -192,12 +262,12 @@ namespace PegaVisaoApi.Controllers
 
         [HttpPut("{id}")]
         [Authorize(Roles = "Admin")]
-        public IActionResult AtualizaPedido(
+        public async Task<IActionResult> AtualizaPedido(
             int id,
             UpdatePedidoDto dto)
         {
-            var pedido = _context.Pedidos
-                .FirstOrDefault(p => p.Id == id);
+            var pedido = await _context.Pedidos
+                .FirstOrDefaultAsync(p => p.Id == id);
 
             if (pedido == null)
             {
@@ -206,14 +276,14 @@ namespace PegaVisaoApi.Controllers
 
             _mapper.Map(dto, pedido);
 
-            _context.SaveChanges();
+            await _context.SaveChangesAsync();
 
             return NoContent();
         }
 
         [HttpPut("{id}/cancelar")]
         [Authorize]
-        public IActionResult CancelarPedido(int id)
+        public async Task<IActionResult> CancelarPedido(int id)
         {
             var usuarioIdClaim =
                 User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -223,8 +293,8 @@ namespace PegaVisaoApi.Controllers
                 return Unauthorized();
             }
 
-            var pedido = _context.Pedidos
-                .FirstOrDefault(p =>
+            var pedido = await _context.Pedidos
+                .FirstOrDefaultAsync(p =>
                     p.Id == id &&
                     p.UsuarioId == usuarioId
                 );
@@ -241,13 +311,14 @@ namespace PegaVisaoApi.Controllers
             {
                 return BadRequest(new
                 {
-                    mensagem = "Este pedido não pode mais ser cancelado."
+                    mensagem =
+                        "Este pedido não pode mais ser cancelado."
                 });
             }
 
             pedido.Status = Status.Cancelado;
 
-            _context.SaveChanges();
+            await _context.SaveChangesAsync();
 
             return Ok(new
             {
@@ -259,10 +330,10 @@ namespace PegaVisaoApi.Controllers
 
         [HttpDelete("{id}")]
         [Authorize(Roles = "Admin")]
-        public IActionResult DeletarPedido(int id)
+        public async Task<IActionResult> DeletarPedido(int id)
         {
-            var pedido = _context.Pedidos
-                .FirstOrDefault(p => p.Id == id);
+            var pedido = await _context.Pedidos
+                .FirstOrDefaultAsync(p => p.Id == id);
 
             if (pedido == null)
             {
@@ -271,7 +342,7 @@ namespace PegaVisaoApi.Controllers
 
             _context.Pedidos.Remove(pedido);
 
-            _context.SaveChanges();
+            await _context.SaveChangesAsync();
 
             return NoContent();
         }

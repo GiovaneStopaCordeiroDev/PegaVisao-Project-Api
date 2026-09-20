@@ -12,6 +12,12 @@
 
         public string FormaPagamento { get; set; }
 
+        public string? MercadoPagoOrderId { get; set; }
+
+        public string? MercadoPagoStatus { get; set; }
+
+        public string? MercadoPagoCheckoutUrl { get; set; }
+
         public string Cep { get; set; }
 
         public string Rua { get; set; }
