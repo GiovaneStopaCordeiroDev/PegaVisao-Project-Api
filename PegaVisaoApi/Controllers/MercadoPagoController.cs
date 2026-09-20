@@ -131,5 +131,63 @@ namespace PegaVisaoApi.Controllers
                 return Ok();
             }
         }
+
+        [HttpGet("teste-pagamento/{pedidoId}")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> TestarPagamento(int pedidoId)
+        {
+            var pedido = await _context.Pedidos
+                .FirstOrDefaultAsync(p => p.Id == pedidoId);
+
+            if (pedido == null)
+            {
+                return NotFound(new
+                {
+                    mensagem = "Pedido não encontrado."
+                });
+            }
+
+            if (string.IsNullOrWhiteSpace(pedido.MercadoPagoPaymentId))
+            {
+                return BadRequest(new
+                {
+                    mensagem = "O pedido não possui MercadoPagoPaymentId."
+                });
+            }
+
+            try
+            {
+                var pagamento =
+                    await _mercadoPagoService.ConsultarPagamentoAsync(
+                        pedido.MercadoPagoPaymentId
+                    );
+
+                var status =
+                    pagamento
+                        .GetProperty("status")
+                        .GetString();
+
+                var statusDetail =
+                    pagamento
+                        .GetProperty("status_detail")
+                        .GetString();
+
+                return Ok(new
+                {
+                    pedidoId = pedido.Id,
+                    paymentId = pedido.MercadoPagoPaymentId,
+                    status,
+                    statusDetail
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(502, new
+                {
+                    mensagem = "Não foi possível consultar o pagamento no Mercado Pago.",
+                    erro = ex.Message
+                });
+            }
+        }
     }
 }
