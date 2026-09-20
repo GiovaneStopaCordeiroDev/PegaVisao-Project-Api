@@ -45,6 +45,9 @@
         public string? MercadoPagoStatus { get; set; }
 
         public string? MercadoPagoCheckoutUrl { get; set; }
+        public string? MercadoPagoPaymentId { get; set; }
+        public string? PixQrCode { get; set; }
+        public string? PixQrCodeBase64 { get; set; }
 
         public virtual ICollection<ItemPedido> Itens { get; set; }
             = new List<ItemPedido>();

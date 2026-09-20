@@ -32,7 +32,10 @@ namespace PegaVisaoApi.Controllers
         [Authorize]
         public async Task<IActionResult> CriarPedido(CreatePedidoDto dto)
         {
-            // Pega o ID do usuário diretamente do JWT
+            // ==========================================
+            // USUÁRIO LOGADO
+            // ==========================================
+
             var usuarioIdClaim =
                 User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
@@ -41,16 +44,18 @@ namespace PegaVisaoApi.Controllers
                 return Unauthorized("Usuário não identificado.");
             }
 
-            // Verifica se o usuário realmente existe
-            var usuarioExiste = await _context.Usuarios
-                .AnyAsync(u => u.Id == usuarioId);
+            var usuario = await _context.Usuarios
+                .FirstOrDefaultAsync(u => u.Id == usuarioId);
 
-            if (!usuarioExiste)
+            if (usuario == null)
             {
                 return Unauthorized("Usuário não encontrado.");
             }
 
-            // Verifica se existem itens
+            // ==========================================
+            // VALIDAÇÃO DOS ITENS
+            // ==========================================
+
             if (dto.Itens == null || dto.Itens.Count == 0)
             {
                 return BadRequest(
@@ -58,7 +63,10 @@ namespace PegaVisaoApi.Controllers
                 );
             }
 
-            // Cria o pedido
+            // ==========================================
+            // CRIA PEDIDO
+            // ==========================================
+
             var pedido = new Pedido
             {
                 UsuarioId = usuarioId,
@@ -78,6 +86,10 @@ namespace PegaVisaoApi.Controllers
             };
 
             decimal valorTotal = 0;
+
+            // ==========================================
+            // ADICIONA OS ITENS
+            // ==========================================
 
             foreach (var itemDto in dto.Itens)
             {
@@ -122,16 +134,21 @@ namespace PegaVisaoApi.Controllers
                     itemPedido.Quantidade;
             }
 
-            // O preço é calculado pelo backend
+            // O preço sempre é calculado pelo backend
             pedido.ValorTotal = valorTotal;
 
-            // Salva primeiro para gerar o ID do pedido
+            // ==========================================
+            // SALVA O PEDIDO
+            // ==========================================
+
             _context.Pedidos.Add(pedido);
 
             await _context.SaveChangesAsync();
 
-            // Recarrega o pedido com todos os relacionamentos
-            // necessários para criar a Order no Mercado Pago
+            // ==========================================
+            // RECARREGA O PEDIDO COM OS RELACIONAMENTOS
+            // ==========================================
+
             var pedidoComItens = await _context.Pedidos
                 .Include(p => p.Itens)
                     .ThenInclude(i => i.VariacaoProduto)
@@ -148,36 +165,172 @@ namespace PegaVisaoApi.Controllers
 
             try
             {
-                // Cria a Order no Mercado Pago
-                var order =
-                    await _mercadoPagoService.CriarOrderAsync(
-                        pedidoComItens
-                    );
+                // ==========================================
+                // PIX
+                // ==========================================
 
-                // Pega os dados retornados pelo Mercado Pago
-                var orderId = order
-                    .GetProperty("id")
-                    .GetString();
+                if (dto.FormaPagamento.Equals(
+                    "Pix",
+                    StringComparison.OrdinalIgnoreCase))
+                {
+                    var pix =
+                        await _mercadoPagoService.CriarPixAsync(
+                            pedidoComItens,
+                            usuario.Email
+                        );
 
-                var mercadoPagoStatus = order
-                    .GetProperty("status")
-                    .GetString();
+                    // ==========================================
+                    // ORDERS API
+                    //
+                    // A resposta possui:
+                    //
+                    // transactions
+                    //   -> payments
+                    //       -> payment
+                    // ==========================================
 
-                var checkoutUrl = order
-                    .GetProperty("checkout_url")
-                    .GetString();
+                    var transactions =
+                        pix.GetProperty("transactions");
 
-                // Salva os dados do Mercado Pago no pedido
-                pedidoComItens.MercadoPagoOrderId = orderId;
-                pedidoComItens.MercadoPagoStatus = mercadoPagoStatus;
-                pedidoComItens.MercadoPagoCheckoutUrl = checkoutUrl;
+                    var payments =
+                        transactions.GetProperty("payments");
 
-                await _context.SaveChangesAsync();
+                    if (payments.GetArrayLength() == 0)
+                    {
+                        return StatusCode(
+                            502,
+                            new
+                            {
+                                mensagem =
+                                    "O Mercado Pago não retornou um pagamento para o pedido.",
+                                pedidoId = pedidoComItens.Id
+                            }
+                        );
+                    }
+
+                    var payment = payments[0];
+
+                    // ID do pagamento é STRING
+                    var paymentId =
+                        payment
+                            .GetProperty("id")
+                            .GetString();
+
+                    // Status do pagamento
+                    var mercadoPagoStatus =
+                        payment
+                            .GetProperty("status")
+                            .GetString();
+
+                    string? qrCode = null;
+                    string? qrCodeBase64 = null;
+
+                    // ==========================================
+                    // DADOS DO PIX
+                    // ==========================================
+
+                    if (payment.TryGetProperty(
+                        "payment_method",
+                        out var paymentMethod))
+                    {
+                        if (paymentMethod.TryGetProperty(
+                            "qr_code",
+                            out var qrCodeProperty))
+                        {
+                            qrCode =
+                                qrCodeProperty.GetString();
+                        }
+
+                        if (paymentMethod.TryGetProperty(
+                            "qr_code_base64",
+                            out var qrCodeBase64Property))
+                        {
+                            qrCodeBase64 =
+                                qrCodeBase64Property.GetString();
+                        }
+                    }
+
+                    // ==========================================
+                    // VERIFICA SE O QR CODE FOI GERADO
+                    // ==========================================
+
+                    if (string.IsNullOrWhiteSpace(qrCode))
+                    {
+                        return StatusCode(
+                            502,
+                            new
+                            {
+                                mensagem =
+                                    "O pagamento Pix foi criado, mas o código Pix não foi retornado pelo Mercado Pago.",
+                                pedidoId = pedidoComItens.Id,
+                                mercadoPagoStatus =
+                                    mercadoPagoStatus
+                            }
+                        );
+                    }
+
+                    // ==========================================
+                    // SALVA DADOS DO PIX NO PEDIDO
+                    // ==========================================
+
+                    pedidoComItens.MercadoPagoPaymentId =
+                        paymentId;
+
+                    pedidoComItens.MercadoPagoStatus =
+                        mercadoPagoStatus;
+
+                    pedidoComItens.PixQrCode =
+                        qrCode;
+
+                    pedidoComItens.PixQrCodeBase64 =
+                        qrCodeBase64;
+
+                    await _context.SaveChangesAsync();
+                }
+
+                // ==========================================
+                // CARTÃO
+                // ==========================================
+
+                else
+                {
+                    var order =
+                        await _mercadoPagoService.CriarOrderAsync(
+                            pedidoComItens
+                        );
+
+                    var orderId =
+                        order
+                            .GetProperty("id")
+                            .GetString();
+
+                    var mercadoPagoStatus =
+                        order
+                            .GetProperty("status")
+                            .GetString();
+
+                    var checkoutUrl =
+                        order
+                            .GetProperty("checkout_url")
+                            .GetString();
+
+                    pedidoComItens.MercadoPagoOrderId =
+                        orderId;
+
+                    pedidoComItens.MercadoPagoStatus =
+                        mercadoPagoStatus;
+
+                    pedidoComItens.MercadoPagoCheckoutUrl =
+                        checkoutUrl;
+
+                    await _context.SaveChangesAsync();
+                }
             }
             catch (Exception ex)
             {
                 // O pedido continua salvo como Pendente,
-                // mas avisamos o frontend que o pagamento não foi criado.
+                // mas informamos que o pagamento não foi iniciado.
+
                 return StatusCode(
                     502,
                     new
@@ -190,6 +343,10 @@ namespace PegaVisaoApi.Controllers
                 );
             }
 
+            // ==========================================
+            // RETORNA PEDIDO
+            // ==========================================
+
             var pedidoDto =
                 _mapper.Map<ReadPedidoDto>(pedidoComItens);
 
@@ -199,6 +356,10 @@ namespace PegaVisaoApi.Controllers
                 pedidoDto
             );
         }
+
+        // ==========================================
+        // BUSCAR PEDIDO POR ID
+        // ==========================================
 
         [HttpGet("{id}")]
         [Authorize]
@@ -233,6 +394,10 @@ namespace PegaVisaoApi.Controllers
             return Ok(pedidoDto);
         }
 
+        // ==========================================
+        // LISTAR PEDIDOS DO USUÁRIO
+        // ==========================================
+
         [HttpGet]
         [Authorize]
         public async Task<ActionResult<IEnumerable<ReadPedidoDto>>>
@@ -260,6 +425,10 @@ namespace PegaVisaoApi.Controllers
             return Ok(pedidosDto);
         }
 
+        // ==========================================
+        // ATUALIZAR PEDIDO - ADMIN
+        // ==========================================
+
         [HttpPut("{id}")]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> AtualizaPedido(
@@ -280,6 +449,10 @@ namespace PegaVisaoApi.Controllers
 
             return NoContent();
         }
+
+        // ==========================================
+        // CANCELAR PEDIDO
+        // ==========================================
 
         [HttpPut("{id}/cancelar")]
         [Authorize]
@@ -327,6 +500,10 @@ namespace PegaVisaoApi.Controllers
                 status = pedido.Status.ToString()
             });
         }
+
+        // ==========================================
+        // DELETAR PEDIDO - ADMIN
+        // ==========================================
 
         [HttpDelete("{id}")]
         [Authorize(Roles = "Admin")]

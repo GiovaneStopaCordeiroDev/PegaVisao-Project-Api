@@ -18,6 +18,10 @@
 
         public string? MercadoPagoCheckoutUrl { get; set; }
 
+        public string? MercadoPagoPaymentId { get; set; }
+        public string? PixQrCode { get; set; }
+        public string? PixQrCodeBase64 { get; set; }
+
         public string Cep { get; set; }
 
         public string Rua { get; set; }
