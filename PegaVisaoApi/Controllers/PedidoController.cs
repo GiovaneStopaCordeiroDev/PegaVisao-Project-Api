@@ -176,7 +176,8 @@ namespace PegaVisaoApi.Controllers
                     var pix =
                         await _mercadoPagoService.CriarPixAsync(
                             pedidoComItens,
-                            usuario.Email
+                            usuario.Email,
+                            usuario.Nome
                         );
 
                     // ==========================================
@@ -250,6 +251,19 @@ namespace PegaVisaoApi.Controllers
                         }
                     }
 
+                    // Persiste a correlação mesmo quando o QR Code não é retornado.
+                    // ExecuteUpdate não sobrescreve uma confirmação concorrente do webhook.
+                    var pixOrderId = pix.GetProperty("id").GetString();
+                    await _context.Pedidos.Where(p => p.Id == pedidoComItens.Id)
+                        .ExecuteUpdateAsync(update => update
+                            .SetProperty(p => p.MercadoPagoOrderId, pixOrderId)
+                            .SetProperty(p => p.MercadoPagoPaymentId, paymentId)
+                            .SetProperty(p => p.MercadoPagoStatus,
+                                p => p.Status == Status.Pendente ? mercadoPagoStatus : p.MercadoPagoStatus)
+                            .SetProperty(p => p.PixQrCode, qrCode)
+                            .SetProperty(p => p.PixQrCodeBase64, qrCodeBase64));
+                    await _context.Entry(pedidoComItens).ReloadAsync();
+
                     // ==========================================
                     // VERIFICA SE O QR CODE FOI GERADO
                     // ==========================================
@@ -273,19 +287,6 @@ namespace PegaVisaoApi.Controllers
                     // SALVA DADOS DO PIX NO PEDIDO
                     // ==========================================
 
-                    pedidoComItens.MercadoPagoPaymentId =
-                        paymentId;
-
-                    pedidoComItens.MercadoPagoStatus =
-                        mercadoPagoStatus;
-
-                    pedidoComItens.PixQrCode =
-                        qrCode;
-
-                    pedidoComItens.PixQrCodeBase64 =
-                        qrCodeBase64;
-
-                    await _context.SaveChangesAsync();
                 }
 
                 // ==========================================
@@ -429,6 +430,21 @@ namespace PegaVisaoApi.Controllers
         // ATUALIZAR PEDIDO - ADMIN
         // ==========================================
 
+        [HttpGet("{id:int}")]
+        [Authorize]
+        public async Task<IActionResult> RecuperarPedido(int id)
+        {
+            if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var usuarioId))
+                return Unauthorized();
+
+            var pedido = await _context.Pedidos.AsNoTracking()
+                .Where(p => p.Id == id && p.UsuarioId == usuarioId)
+                .Select(p => new { p.Id, Status = p.Status.ToString(), p.MercadoPagoStatus,
+                    p.MercadoPagoOrderId, p.MercadoPagoPaymentId })
+                .SingleOrDefaultAsync();
+            return pedido == null ? NotFound() : Ok(pedido);
+        }
+
         [HttpPut("{id}")]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> AtualizaPedido(
@@ -489,15 +505,18 @@ namespace PegaVisaoApi.Controllers
                 });
             }
 
-            pedido.Status = Status.Cancelado;
-
-            await _context.SaveChangesAsync();
+            // Não sobrescreve Pago se o webhook confirmar entre a leitura e a escrita.
+            var cancelados = await _context.Pedidos
+                .Where(p => p.Id == id && p.UsuarioId == usuarioId && p.Status == Status.Pendente)
+                .ExecuteUpdateAsync(update => update.SetProperty(p => p.Status, Status.Cancelado));
+            if (cancelados == 0)
+                return BadRequest(new { mensagem = "Este pedido não pode mais ser cancelado." });
 
             return Ok(new
             {
                 mensagem = "Pedido cancelado com sucesso.",
                 pedidoId = pedido.Id,
-                status = pedido.Status.ToString()
+                status = Status.Cancelado.ToString()
             });
         }
 

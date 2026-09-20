@@ -5,7 +5,8 @@
         Pendente,
         Enviado,
         Entregue,
-        Cancelado
+        Cancelado,
+        Pago = 4
     }
 
     public class Pedido

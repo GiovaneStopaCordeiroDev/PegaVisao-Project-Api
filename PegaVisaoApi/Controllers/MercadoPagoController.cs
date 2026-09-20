@@ -2,192 +2,133 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PegaVisaoApi.Data;
+using PegaVisaoApi.Models;
 using PegaVisaoApi.Services;
 using System.Text.Json;
 
-namespace PegaVisaoApi.Controllers
+namespace PegaVisaoApi.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+public class MercadoPagoController : ControllerBase
 {
-    [ApiController]
-    [Route("api/[controller]")]
-    public class MercadoPagoController : ControllerBase
+    private readonly MercadoPagoService _mercadoPagoService;
+    private readonly PegaVisaoContext _context;
+    private readonly ILogger<MercadoPagoController> _logger;
+
+    public MercadoPagoController(MercadoPagoService mercadoPagoService,
+        PegaVisaoContext context, ILogger<MercadoPagoController> logger)
     {
-        private readonly MercadoPagoService _mercadoPagoService;
-        private readonly PegaVisaoContext _context;
+        _mercadoPagoService = mercadoPagoService;
+        _context = context;
+        _logger = logger;
+    }
 
-        public MercadoPagoController(
-            MercadoPagoService mercadoPagoService,
-            PegaVisaoContext context)
-        {
-            _mercadoPagoService = mercadoPagoService;
-            _context = context;
-        }
+    [HttpPost("webhook")]
+    [AllowAnonymous]
+    public async Task<IActionResult> Webhook([FromBody] JsonElement notificacao)
+    {
+        if (notificacao.ValueKind != JsonValueKind.Object ||
+            !notificacao.TryGetProperty("type", out var tipo))
+            return BadRequest();
+        var type = tipo.ToString();
+        if (type != "order" && type != "payment")
+            return Ok();
+        if (!notificacao.TryGetProperty("data", out var data) ||
+            data.ValueKind != JsonValueKind.Object || !data.TryGetProperty("id", out var id))
+            return BadRequest();
+        var resourceId = id.ToString();
+        if (string.IsNullOrWhiteSpace(resourceId) ||
+            (type == "order" ? !resourceId.StartsWith("ORD", StringComparison.Ordinal) ||
+                !resourceId.All(char.IsAsciiLetterOrDigit) : !resourceId.All(char.IsAsciiDigit)))
+            return BadRequest();
 
-        [HttpPost("webhook")]
-        [AllowAnonymous]
-        public async Task<IActionResult> Webhook(
-            [FromBody] JsonElement notificacao)
+        _logger.LogInformation("MP webhook recebido: {Tipo} {ResourceId}", type, resourceId);
+        try
         {
-            try
+            // Não utilizamos status ou external_reference enviados no body.
+            var estado = type == "order"
+                ? EstadoPagamentoMercadoPago.DaOrder(await _mercadoPagoService.ConsultarOrderAsync(resourceId))
+                : EstadoPagamentoMercadoPago.DoPayment(await _mercadoPagoService.ConsultarPagamentoAsync(resourceId));
+            if ((estado.OrderId ?? estado.PaymentId) != resourceId)
+                throw new InvalidDataException("A API retornou um recurso diferente do solicitado.");
+
+            if (!int.TryParse(estado.ExternalReference, out var pedidoId))
             {
-                Console.WriteLine("=================================");
-                Console.WriteLine("WEBHOOK MERCADO PAGO RECEBIDO");
-                Console.WriteLine(notificacao.ToString());
-                Console.WriteLine("=================================");
-
-                // Verifica se é uma notificação de pagamento
-                if (!notificacao.TryGetProperty(
-                    "type",
-                    out var type))
-                {
-                    return Ok();
-                }
-
-                if (type.GetString() != "payment")
-                {
-                    return Ok();
-                }
-
-                // Pega o payment_id
-                if (!notificacao.TryGetProperty(
-                    "data",
-                    out var data))
-                {
-                    return Ok();
-                }
-
-                if (!data.TryGetProperty(
-                    "id",
-                    out var id))
-                {
-                    return Ok();
-                }
-
-                var paymentId = id.ToString();
-
-                Console.WriteLine(
-                    $"Payment ID recebido: {paymentId}"
-                );
-
-                // Consulta o pagamento diretamente no Mercado Pago
-                var pagamento =
-                    await _mercadoPagoService
-                        .ConsultarPagamentoAsync(paymentId);
-
-                var status =
-                    pagamento
-                        .GetProperty("status")
-                        .GetString();
-
-                var statusDetail =
-                    pagamento
-                        .GetProperty("status_detail")
-                        .GetString();
-
-                Console.WriteLine(
-                    $"Status Mercado Pago: {status}"
-                );
-
-                Console.WriteLine(
-                    $"Status detalhe: {statusDetail}"
-                );
-
-                // Procura o pedido pelo Payment ID
-                var pedido = await _context.Pedidos
-                    .FirstOrDefaultAsync(p =>
-                        p.MercadoPagoPaymentId == paymentId
-                    );
-
-                if (pedido == null)
-                {
-                    Console.WriteLine(
-                        $"Pedido não encontrado para payment_id {paymentId}"
-                    );
-
-                    // Mesmo assim retornamos 200.
-                    // O Mercado Pago não precisa reenviar
-                    // indefinidamente uma notificação válida.
-                    return Ok();
-                }
-
-                // Atualiza o status do Mercado Pago
-                pedido.MercadoPagoStatus = status;
-
-                await _context.SaveChangesAsync();
-
-                Console.WriteLine(
-                    $"Pedido {pedido.Id} atualizado para status {status}"
-                );
-
+                _logger.LogWarning("MP recurso externo ignorado: {ResourceId}", resourceId);
                 return Ok();
             }
-            catch (Exception ex)
-            {
-                Console.WriteLine(
-                    "ERRO NO WEBHOOK MERCADO PAGO:"
-                );
 
-                Console.WriteLine(ex);
-
-                return Ok();
-            }
-        }
-
-        [HttpGet("teste-pagamento/{pedidoId}")]
-        [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> TestarPagamento(int pedidoId)
-        {
+            // Serializa webhooks concorrentes do mesmo pedido no PostgreSQL.
+            await using var transaction = await _context.Database.BeginTransactionAsync();
             var pedido = await _context.Pedidos
-                .FirstOrDefaultAsync(p => p.Id == pedidoId);
-
+                .FromSqlInterpolated($"SELECT * FROM \"Pedidos\" WHERE \"Id\" = {pedidoId} FOR UPDATE")
+                .SingleOrDefaultAsync();
             if (pedido == null)
             {
-                return NotFound(new
-                {
-                    mensagem = "Pedido não encontrado."
-                });
+                _logger.LogWarning("MP pedido inexistente: {PedidoId}, recurso {ResourceId}", pedidoId, resourceId);
+                // O pedido é persistido antes da chamada ao provedor.
+                return Ok();
             }
-
-            if (string.IsNullOrWhiteSpace(pedido.MercadoPagoPaymentId))
+            if (pedido.ValorTotal != estado.Valor ||
+                (pedido.MercadoPagoOrderId != null && pedido.MercadoPagoOrderId != estado.OrderId) ||
+                (pedido.MercadoPagoPaymentId != null && pedido.MercadoPagoPaymentId != estado.PaymentId) ||
+                (type == "payment" && pedido.MercadoPagoPaymentId == null))
             {
-                return BadRequest(new
-                {
-                    mensagem = "O pedido não possui MercadoPagoPaymentId."
-                });
+                _logger.LogError("MP divergência de vínculo ou valor: pedido {PedidoId}, recurso {ResourceId}", pedidoId, resourceId);
+                return Ok(); // Erro permanente: investigar, sem confirmar nem repetir indefinidamente.
             }
 
-            try
+            pedido.MercadoPagoOrderId = estado.OrderId;
+            pedido.MercadoPagoPaymentId = estado.PaymentId;
+            // Evita que uma consulta anterior à confirmação regrida o status.
+            if (pedido.Status == Status.Pendente || estado.Status != "action_required" && estado.Status != "pending")
+                pedido.MercadoPagoStatus = estado.Status;
+            var transicao = estado.Confirmado && pedido.Status == Status.Pendente;
+            if (transicao)
             {
-                var pagamento =
-                    await _mercadoPagoService.ConsultarPagamentoAsync(
-                        pedido.MercadoPagoPaymentId
-                    );
-
-                var status =
-                    pagamento
-                        .GetProperty("status")
-                        .GetString();
-
-                var statusDetail =
-                    pagamento
-                        .GetProperty("status_detail")
-                        .GetString();
-
-                return Ok(new
-                {
-                    pedidoId = pedido.Id,
-                    paymentId = pedido.MercadoPagoPaymentId,
-                    status,
-                    statusDetail
-                });
+                pedido.Status = Status.Pago;
+                // Futura baixa de estoque: aqui, na mesma transação e sob o mesmo bloqueio.
+                // Ainda não há baixa de estoque implementada no projeto.
             }
-            catch (Exception ex)
-            {
-                return StatusCode(502, new
-                {
-                    mensagem = "Não foi possível consultar o pagamento no Mercado Pago.",
-                    erro = ex.Message
-                });
-            }
+            if (estado.Confirmado && pedido.Status == Status.Cancelado)
+                _logger.LogWarning("MP pagamento de pedido cancelado: {PedidoId}; requer conciliação", pedidoId);
+
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+            _logger.LogInformation("MP confirmado na API: pedido {PedidoId}, order {OrderId}, payment {PaymentId}, status {Status}/{Detalhe}, transicaoPago {Transicao}",
+                pedido.Id, estado.OrderId, estado.PaymentId, estado.Status, estado.StatusDetail, transicao);
+            return Ok();
+        }
+        catch (Exception ex)
+        {
+            // Inclui 404 do provedor: pode haver atraso na visibilidade do recurso.
+            _logger.LogError(ex, "MP falha ao processar {ResourceId}; solicitar reenvio", resourceId);
+            return StatusCode(503);
+        }
+    }
+
+    [HttpGet("teste-pagamento/{pedidoId:int}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> TestarPagamento(int pedidoId)
+    {
+        var pedido = await _context.Pedidos.AsNoTracking().SingleOrDefaultAsync(p => p.Id == pedidoId);
+        if (pedido == null) return NotFound();
+        if (string.IsNullOrWhiteSpace(pedido.MercadoPagoOrderId) &&
+            (string.IsNullOrWhiteSpace(pedido.MercadoPagoPaymentId) || pedido.MercadoPagoPaymentId.StartsWith("PAY")))
+            return BadRequest(new { mensagem = "Pedido sem Order ID. Recupere ORD... na resposta original ou reenvie a notificação order; PAY... não pode ser consultado na Payments API." });
+        try
+        {
+            var estado = !string.IsNullOrWhiteSpace(pedido.MercadoPagoOrderId)
+                ? EstadoPagamentoMercadoPago.DaOrder(await _mercadoPagoService.ConsultarOrderAsync(pedido.MercadoPagoOrderId))
+                : EstadoPagamentoMercadoPago.DoPayment(await _mercadoPagoService.ConsultarPagamentoAsync(pedido.MercadoPagoPaymentId!));
+            return Ok(new { pedidoId, estado.OrderId, estado.PaymentId, estado.Status,
+                estado.StatusDetail, estado.Confirmado, statusPedido = pedido.Status.ToString() });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "MP falha na consulta administrativa do pedido {PedidoId}", pedidoId);
+            return StatusCode(502, new { mensagem = "Não foi possível consultar o recurso no Mercado Pago." });
         }
     }
 }

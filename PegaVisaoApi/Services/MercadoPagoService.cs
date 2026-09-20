@@ -25,7 +25,7 @@ namespace PegaVisaoApi.Services
         public async Task<JsonElement> CriarOrderAsync(Pedido pedido)
         {
             var accessToken =
-                _configuration["MercadoPago:APP_USR-8545403186381729-092009-8288b7d1f1db32f991f630ab2e741da3-1200567027"];
+                _configuration["MercadoPago:AccessToken"];
 
             if (string.IsNullOrWhiteSpace(accessToken))
             {
@@ -128,7 +128,8 @@ namespace PegaVisaoApi.Services
 
         public async Task<JsonElement> CriarPixAsync(
             Pedido pedido,
-            string emailCliente)
+            string emailCliente,
+            string nomeCliente)
         {
             var accessToken =
                 _configuration["MercadoPago:AccessToken"];
@@ -158,6 +159,7 @@ namespace PegaVisaoApi.Services
                 System.Globalization.CultureInfo.InvariantCulture
             );
 
+            var testePix = _configuration.GetValue<bool>("MercadoPago:PixTeste");
             var body = new
             {
                 type = "online",
@@ -168,8 +170,8 @@ namespace PegaVisaoApi.Services
 
                 payer = new
                 {
-                    email = "test_user_br@testuser.com",
-                    first_name = "APRO"
+                    email = testePix ? "test_user_br@testuser.com" : emailCliente,
+                    first_name = testePix ? "APRO" : nomeCliente.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault()
                 },
 
                 transactions = new
@@ -235,6 +237,20 @@ namespace PegaVisaoApi.Services
 
         public async Task<JsonElement> ConsultarPagamentoAsync(string paymentId)
         {
+            if (string.IsNullOrWhiteSpace(paymentId) || !paymentId.All(char.IsAsciiDigit))
+                throw new ArgumentException("Payments API exige um ID numérico. Para PAY..., consulte a order ORD... correspondente.");
+            return await ConsultarRecursoAsync("payments", paymentId);
+        }
+
+        public Task<JsonElement> ConsultarOrderAsync(string orderId)
+        {
+            if (string.IsNullOrWhiteSpace(orderId) || !orderId.StartsWith("ORD", StringComparison.Ordinal) || !orderId.All(char.IsAsciiLetterOrDigit))
+                throw new ArgumentException("Order ID inválido; esperado ORD...");
+            return ConsultarRecursoAsync("orders", orderId);
+        }
+
+        private async Task<JsonElement> ConsultarRecursoAsync(string recurso, string paymentId)
+        {
             var accessToken =
                 _configuration["MercadoPago:AccessToken"];
 
@@ -254,7 +270,7 @@ namespace PegaVisaoApi.Services
 
             using var request = new HttpRequestMessage(
                 HttpMethod.Get,
-                $"https://api.mercadopago.com/v1/payments/{paymentId}"
+                $"https://api.mercadopago.com/v1/{recurso}/{Uri.EscapeDataString(paymentId)}"
             );
 
             request.Headers.Authorization =
@@ -263,17 +279,15 @@ namespace PegaVisaoApi.Services
                     accessToken
                 );
 
-            var response =
-                await _httpClient.SendAsync(request);
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            using var response = await _httpClient.SendAsync(request, timeout.Token);
 
             var resposta =
                 await response.Content.ReadAsStringAsync();
 
             if (!response.IsSuccessStatusCode)
             {
-                throw new Exception(
-                    $"Erro ao consultar pagamento no Mercado Pago: {resposta}"
-                );
+                throw new HttpRequestException("Falha na consulta ao Mercado Pago.", null, response.StatusCode);
             }
 
             using var document =
