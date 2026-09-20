@@ -128,14 +128,7 @@ namespace PegaVisaoApi.Controllers
 
                 Console.WriteLine(ex);
 
-                return StatusCode(
-                    500,
-                    new
-                    {
-                        mensagem =
-                            "Erro ao processar webhook."
-                    }
-                );
+                return Ok();
             }
         }
     }
