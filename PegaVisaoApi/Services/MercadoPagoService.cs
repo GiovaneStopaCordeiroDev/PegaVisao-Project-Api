@@ -162,7 +162,7 @@ namespace PegaVisaoApi.Services
             {
                 type = "online",
 
-                total_amount = "50.00",
+                total_amount = valorTotal,
 
                 external_reference = pedido.Id.ToString(),
 
@@ -178,7 +178,7 @@ namespace PegaVisaoApi.Services
                 {
                     new
                     {
-                        amount = "50.00",
+                        amount = valorTotal,
 
                         payment_method = new
                         {
@@ -232,5 +232,57 @@ namespace PegaVisaoApi.Services
 
             return document.RootElement.Clone();
         }
+
+        public async Task<JsonElement> ConsultarPagamentoAsync(string paymentId)
+        {
+            var accessToken =
+                _configuration["MercadoPago:AccessToken"];
+
+            if (string.IsNullOrWhiteSpace(accessToken))
+            {
+                throw new Exception(
+                    "Access Token do Mercado Pago não configurado."
+                );
+            }
+
+            if (string.IsNullOrWhiteSpace(paymentId))
+            {
+                throw new Exception(
+                    "Payment ID não informado."
+                );
+            }
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"https://api.mercadopago.com/v1/payments/{paymentId}"
+            );
+
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue(
+                    "Bearer",
+                    accessToken
+                );
+
+            var response =
+                await _httpClient.SendAsync(request);
+
+            var resposta =
+                await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new Exception(
+                    $"Erro ao consultar pagamento no Mercado Pago: {resposta}"
+                );
+            }
+
+            using var document =
+                JsonDocument.Parse(resposta);
+
+            return document.RootElement.Clone();
+        }
+
     }
+
+
 }
