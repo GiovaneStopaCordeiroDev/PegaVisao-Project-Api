@@ -370,7 +370,7 @@ namespace PegaVisaoApi.Controllers
                 .Include(p => p.Itens)
                     .ThenInclude(i => i.VariacaoProduto)
                         .ThenInclude(v => v.Produto)
-                .Where(p => p.UsuarioId == usuarioId)
+                .Where(p => p.UsuarioId == usuarioId && (!p.ExcluidoPeloCliente || p.Status != Status.Cancelado))
                 .OrderByDescending(p => p.DataPedido)
                 .ToListAsync();
 
@@ -478,6 +478,24 @@ namespace PegaVisaoApi.Controllers
         // DELETAR PEDIDO - ADMIN
         // ==========================================
 
+        // Exclusão da lista do cliente; preserva o registro para conciliação do pagamento.
+        [HttpDelete("{id:int}/cancelado")]
+        [Authorize]
+        public async Task<IActionResult> ExcluirPedidoCancelado(int id, CancellationToken ct)
+        {
+            if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var usuarioId))
+                return Unauthorized();
+
+            // A condição é verificada no UPDATE, inclusive se o webhook alterar o status.
+            var excluidos = await _context.Pedidos
+                .Where(p => p.Id == id && p.UsuarioId == usuarioId && p.Status == Status.Cancelado)
+                .ExecuteUpdateAsync(update => update.SetProperty(p => p.ExcluidoPeloCliente, true), ct);
+            if (excluidos > 0) return NoContent();
+
+            var existe = await _context.Pedidos.AnyAsync(p => p.Id == id && p.UsuarioId == usuarioId, ct);
+            if (!existe) return NotFound(new { mensagem = "Pedido não encontrado." });
+            return Conflict(new { mensagem = "Somente pedidos cancelados podem ser excluídos. Atualize a lista para conferir o status." });
+        }
         [HttpDelete("{id}")]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeletarPedido(int id)
