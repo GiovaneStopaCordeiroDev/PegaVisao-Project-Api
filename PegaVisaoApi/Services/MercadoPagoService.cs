@@ -1,4 +1,4 @@
-﻿using System.Net.Http.Headers;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using PegaVisaoApi.Models;
@@ -60,7 +60,14 @@ namespace PegaVisaoApi.Services
 
                     quantity = item.Quantidade
                 };
-            }).ToArray();
+            }).ToList();
+            if (pedido.ValorFrete > 0)
+                itens.Add(new
+                {
+                    title = "Frete - " + pedido.FreteServico,
+                    unit_price = pedido.ValorFrete.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    quantity = 1
+                });
 
             var valorTotal = pedido.ValorTotal.ToString(
                 System.Globalization.CultureInfo.InvariantCulture

@@ -1,9 +1,75 @@
-# Autorização Melhor Envio — primeira etapa
+# Melhor Envio — conexão e cálculo de frete
 
-Implementado: conexão OAuth da conta da loja, callback com state e cookie de correlação,
-tokens criptografados persistidos no PostgreSQL, renovação e botão no painel Admin.
-Ainda não implementado: cadastro de peso/dimensões, cotação no checkout, soma do frete
-ao Pix, contratação/compra de etiquetas e rastreamento. O checkout/Pix não foi modificado.
+Implementado: OAuth da conta da loja, tokens criptografados, renovação, cadastro de
+peso/dimensões, cotação no checkout, seleção de entrega e soma do frete ao pedido/Pix.
+Compra de etiquetas, postagem e rastreamento automático ficam para outra etapa.
+
+## Ativação do cálculo de frete
+
+A migration `20260921202120_AdicionarFreteAoCheckout` foi aplicada ao banco configurado na API em 21/09/2026.
+Para aplicar em outro ambiente, execute na pasta do repositório da API antes de publicar a versão com frete:
+
+```powershell
+dotnet ef database update --project PegaVisaoApi/PegaVisaoApi.csproj
+```
+
+Ela adiciona medidas opcionais aos produtos existentes, dados da entrega aos pedidos e
+`CotacoesFrete` com RLS. Pedidos antigos mantêm seu total e recebem `ValorFrete = 0`.
+O backend usa a conexão PostgreSQL própria, não a chave anônima do Supabase.
+Publique backend e frontend juntos: o POST de pedido passa a exigir uma cotação.
+
+No painel Admin, edite cada produto e informe peso em kg e altura/largura/comprimento
+em cm da unidade embalada. Use medidas reais, incluindo a embalagem. As medidas do
+produto valem para todas as suas variações; produtos com embalagens muito diferentes
+precisam de cadastros separados nesta versão. Carrinhos com produto sem medidas
+retornam uma mensagem e não recebem frete zero como alternativa.
+
+Com a conta Sandbox já conectada, é possível testar a cotação. Para concluir um pedido
+com frete Sandbox, configure também o Pix de teste (`MercadoPago__PixTeste=true` e
+credenciais de teste adequadas). Não use pagamento real nesse fluxo. Para vendas reais,
+configure credenciais Melhor Envio de produção, `MelhorEnvio__Sandbox=false`, autorize
+novamente a conta e use o Pix de produção. Tokens são separados por ambiente/aplicativo.
+
+## Funcionamento
+
+- `POST /api/Frete/cotacoes` (JWT): recebe `cep` e `itens` com `variacaoProdutoId` e
+  `quantidade`. Peso, dimensões e preços vêm exclusivamente do cadastro no backend.
+- Consulta o Melhor Envio por produtos e guarda os serviços disponíveis, usando
+  `custom_price` e `custom_delivery_time`. Serviços indisponíveis são descartados.
+- A resposta contém `id`, `cepDestino`, `subtotal`, `expiraEm`, `sandbox` e `opcoes`.
+  Cada opção contém `servicoId`, `servico`, `transportadora`, `valor` e `prazoDias`.
+- O cliente escolhe uma opção; checkout e pagamento mostram frete e total.
+- `GET /api/Frete/cotacoes/{id}` (JWT) recupera somente a cotação do usuário autenticado.
+- `POST /Pedido` recebe adicionalmente `cotacaoFreteId` e `freteServicoId`. O servidor
+  valida dono, CEP, carrinho, preço, medidas, origem, ambiente e validade (15 minutos).
+  Valores enviados pelo navegador não determinam o valor cobrado.
+- Consumo da cotação e criação do pedido usam uma única transação no banco. Reutilizar
+  a mesma cotação é rejeitado; após erro que já criou pedido, confira Meus pedidos.
+- O total cobrado via Pix é produtos + frete. A confirmação continua sendo feita pela
+  integração Mercado Pago existente. Cotação vencida não cancela um Pix já emitido.
+- O pedido preserva serviço, transportadora, preço, prazo e os volumes retornados pelo
+  provedor. O prazo exibido começa após a postagem; a cotação não compra uma etiqueta.
+
+## Validação desta etapa
+
+```powershell
+dotnet run --project tests/FreteChecks/FreteChecks.csproj
+dotnet run --project tests/MelhorEnvioChecks/MelhorEnvioChecks.csproj
+dotnet run --project tests/PixFlowChecks/PixFlowChecks.csproj
+```
+
+No frontend: `npm run build`, `npm run lint` e
+`node --test src/services/freteCheckout.test.js src/services/pixPendente.test.js`.
+As verificações automatizadas usam HTTP simulado. Ainda é necessário validar a cotação
+real no Sandbox após migration/deploy e testar a reserva concorrente da cotação em
+PostgreSQL. Nenhuma etiqueta foi comprada nem pagamento realizado por esses testes.
+
+Roteiro manual: cadastrar medidas reais; montar carrinho; informar CEP; calcular e
+selecionar entrega; conferir subtotal + frete no pagamento; gerar Pix de teste; conferir
+pedido. Repetir mudando CEP/quantidade ou aguardando 15 minutos: deve exigir nova cotação.
+Sem conexão ou sem serviços disponíveis, deve informar o erro e impedir a finalização.
+
+Documentação do provedor: https://docs.melhorenvio.com.br/reference/calculo-de-fretes-por-produtos
 
 ## 1. Variáveis do Render
 

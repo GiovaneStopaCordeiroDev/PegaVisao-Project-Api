@@ -1,8 +1,8 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace PegaVisaoApi.DTO_s
 {
-    public class CreateProdutoDto
+    public class CreateProdutoDto : DadosEnvioProdutoDto
     {
 
         [Required(ErrorMessage = "O campo Nome é obrigatório.")]

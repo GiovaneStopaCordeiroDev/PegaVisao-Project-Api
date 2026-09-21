@@ -1,4 +1,4 @@
-﻿namespace PegaVisaoApi.Models
+namespace PegaVisaoApi.Models
 {
     public enum Status
     {
@@ -16,6 +16,16 @@
         public DateTime DataPedido { get; set; } = DateTime.UtcNow;
 
         public decimal ValorTotal { get; set; }
+        public decimal ValorFrete { get; set; }
+        public int? FreteServicoId { get; set; }
+        public string? FreteServico { get; set; }
+        public string? FreteTransportadora { get; set; }
+        public int? FretePrazoDias { get; set; }
+        public bool? FreteSandbox { get; set; }
+        public Guid? FreteCotacaoId { get; set; }
+        public string? FreteVolumesJson { get; set; }
+        [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+        public decimal SubtotalProdutos => ValorTotal - ValorFrete;
 
         public Status Status { get; set; } = Status.Pendente;
 

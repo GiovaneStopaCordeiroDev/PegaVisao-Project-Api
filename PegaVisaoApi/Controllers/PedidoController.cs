@@ -1,4 +1,4 @@
-﻿using AutoMapper;
+using AutoMapper;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -7,6 +7,7 @@ using PegaVisaoApi.DTO_s;
 using PegaVisaoApi.Models;
 using PegaVisaoApi.Services;
 using System.Security.Claims;
+using PegaVisaoApi.Services.Frete;
 
 namespace PegaVisaoApi.Controllers
 {
@@ -17,15 +18,18 @@ namespace PegaVisaoApi.Controllers
         private readonly PegaVisaoContext _context;
         private readonly IMapper _mapper;
         private readonly MercadoPagoService _mercadoPagoService;
+        private readonly FreteService _freteService;
 
         public PedidoController(
             PegaVisaoContext context,
             IMapper mapper,
-            MercadoPagoService mercadoPagoService)
+            MercadoPagoService mercadoPagoService,
+            FreteService freteService)
         {
             _context = context;
             _mapper = mapper;
             _mercadoPagoService = mercadoPagoService;
+            _freteService = freteService;
         }
 
         [HttpPost]
@@ -85,65 +89,15 @@ namespace PegaVisaoApi.Controllers
                 Itens = new List<ItemPedido>()
             };
 
-            decimal valorTotal = 0;
-
-            // ==========================================
-            // ADICIONA OS ITENS
-            // ==========================================
-
-            foreach (var itemDto in dto.Itens)
+            try
             {
-                if (itemDto.Quantidade <= 0)
-                {
-                    return BadRequest(
-                        "A quantidade deve ser maior que zero."
-                    );
-                }
-
-                var variacao = await _context.VariacaoProdutos
-                    .Include(v => v.Produto)
-                    .FirstOrDefaultAsync(v =>
-                        v.Id == itemDto.VariacaoProdutoId
-                    );
-
-                if (variacao == null)
-                {
-                    return BadRequest(
-                        $"Variação de produto com ID {itemDto.VariacaoProdutoId} não encontrada."
-                    );
-                }
-
-                if (variacao.Produto == null)
-                {
-                    return BadRequest(
-                        $"Produto da variação {variacao.Id} não encontrado."
-                    );
-                }
-
-                var itemPedido = new ItemPedido
-                {
-                    VariacaoProdutoId = variacao.Id,
-                    Quantidade = itemDto.Quantidade,
-                    PrecoUnitario = variacao.Produto.Preco
-                };
-
-                pedido.Itens.Add(itemPedido);
-
-                valorTotal +=
-                    itemPedido.PrecoUnitario *
-                    itemPedido.Quantidade;
+                await _freteService.SalvarPedidoAsync(pedido, dto.CotacaoFreteId ?? Guid.Empty,
+                    dto.FreteServicoId, dto.Itens, HttpContext.RequestAborted);
             }
-
-            // O preço sempre é calculado pelo backend
-            pedido.ValorTotal = valorTotal;
-
-            // ==========================================
-            // SALVA O PEDIDO
-            // ==========================================
-
-            _context.Pedidos.Add(pedido);
-
-            await _context.SaveChangesAsync();
+            catch (FreteException ex)
+            {
+                return StatusCode(ex.Status, new { mensagem = ex.Message });
+            }
 
             // ==========================================
             // RECARREGA O PEDIDO COM OS RELACIONAMENTOS

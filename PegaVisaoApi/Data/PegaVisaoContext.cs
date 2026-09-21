@@ -59,11 +59,21 @@
                 entity.Property(p => p.StateHash).HasMaxLength(64);
                 entity.Property(p => p.NavegadorHash).HasMaxLength(64);
             });
+            modelBuilder.Entity<CotacaoFrete>(entity =>
+            {
+                entity.HasKey(c => c.Id);
+                entity.Property(c => c.CepDestino).HasMaxLength(8);
+                entity.Property(c => c.CarrinhoHash).HasMaxLength(64);
+                entity.Property(c => c.ConexaoId).HasMaxLength(100);
+                entity.HasIndex(c => c.ExpiraEm);
+            });
+            modelBuilder.Entity<Pedido>().HasIndex(p => p.FreteCotacaoId).IsUnique();
             base.OnModelCreating(modelBuilder);
         }
 
 
         public DbSet<MelhorEnvioConexao> MelhorEnvioConexoes { get; set; }
+        public DbSet<CotacaoFrete> CotacoesFrete { get; set; }
         public DbSet<Produto> Produtos { get; set; }
         public DbSet<Pedido> Pedidos  { get; set; }
         public DbSet<Categoria> Categorias { get; set; }

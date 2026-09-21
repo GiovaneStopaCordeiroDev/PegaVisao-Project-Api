@@ -1,4 +1,4 @@
-﻿using AutoMapper;
+using AutoMapper;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PegaVisaoApi.Data;
@@ -129,6 +129,10 @@ namespace PegaVisaoApi.Controllers
             produto.Nome = dto.Nome;
             produto.Descricao = dto.Descricao;
             produto.Preco = dto.Preco;
+            produto.PesoKg = dto.PesoKg;
+            produto.AlturaCm = dto.AlturaCm;
+            produto.LarguraCm = dto.LarguraCm;
+            produto.ComprimentoCm = dto.ComprimentoCm;
             produto.ImagemPrincipal = dto.ImagemPrincipal;
             produto.CategoriaId = dto.CategoriaId;
 

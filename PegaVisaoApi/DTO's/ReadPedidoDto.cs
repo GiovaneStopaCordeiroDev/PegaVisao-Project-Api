@@ -1,4 +1,4 @@
-﻿namespace PegaVisaoApi.DTO_s
+namespace PegaVisaoApi.DTO_s
 {
     public class ReadPedidoDto
     {
@@ -7,6 +7,14 @@
         public DateTime DataPedido { get; set; }
 
         public decimal ValorTotal { get; set; }
+        public decimal ValorFrete { get; set; }
+        public int? FreteServicoId { get; set; }
+        public string? FreteServico { get; set; }
+        public string? FreteTransportadora { get; set; }
+        public int? FretePrazoDias { get; set; }
+        public bool? FreteSandbox { get; set; }
+        public Guid? FreteCotacaoId { get; set; }
+        public decimal SubtotalProdutos { get; set; }
 
         public string Status { get; set; }
 

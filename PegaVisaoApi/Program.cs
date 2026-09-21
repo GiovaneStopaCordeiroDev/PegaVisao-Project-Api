@@ -6,6 +6,7 @@ using PegaVisaoApi.Data;
 using PegaVisaoApi.Services;
 using System.Text;
 using PegaVisaoApi.Services.MelhorEnvio;
+using PegaVisaoApi.Services.Frete;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -106,6 +107,11 @@ builder.Services.AddHttpClient<MelhorEnvioOAuthClient>(client =>
 }).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
 builder.Services.AddScoped<MelhorEnvioService>();
 builder.Services.AddHostedService<MelhorEnvioRenovacaoWorker>();
+builder.Services.AddHttpClient<MelhorEnvioFreteClient>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(20);
+}).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
+builder.Services.AddScoped<FreteService>();
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
