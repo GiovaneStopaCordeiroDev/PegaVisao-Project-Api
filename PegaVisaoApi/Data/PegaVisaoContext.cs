@@ -1,4 +1,4 @@
-﻿        using Microsoft.EntityFrameworkCore;
+        using Microsoft.EntityFrameworkCore;
         using PegaVisaoApi.Models;
 
         namespace PegaVisaoApi.Data
@@ -51,10 +51,19 @@
                         .OnDelete(DeleteBehavior.Restrict);
 
 
+            modelBuilder.Entity<MelhorEnvioConexao>(entity =>
+            {
+                entity.ToTable("MelhorEnvioConexoes");
+                entity.HasKey(p => p.Id);
+                entity.Property(p => p.Id).HasMaxLength(100);
+                entity.Property(p => p.StateHash).HasMaxLength(64);
+                entity.Property(p => p.NavegadorHash).HasMaxLength(64);
+            });
             base.OnModelCreating(modelBuilder);
         }
 
 
+        public DbSet<MelhorEnvioConexao> MelhorEnvioConexoes { get; set; }
         public DbSet<Produto> Produtos { get; set; }
         public DbSet<Pedido> Pedidos  { get; set; }
         public DbSet<Categoria> Categorias { get; set; }

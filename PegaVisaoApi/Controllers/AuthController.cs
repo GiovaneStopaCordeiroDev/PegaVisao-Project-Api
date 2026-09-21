@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using PegaVisaoApi.Data;
@@ -93,36 +93,6 @@ namespace PegaVisaoApi.Controllers
                 Email = usuario.Email,
                 IsAdmin = usuario.IsAdmin,
                 Token = token
-            });
-        }
-
-        // TEMPORÁRIO: usado para recuperar a senha do administrador.
-        // Remova este endpoint depois de recuperar o acesso.
-        [HttpPut("resetar-senha-admin")]
-        public async Task<IActionResult> ResetarSenhaAdmin()
-        {
-            var usuario = await _context.Usuarios
-                .FirstOrDefaultAsync(u =>
-                    u.Email == "admin@pegavisao.com");
-
-            if (usuario == null)
-            {
-                return NotFound(new
-                {
-                    mensagem = "Administrador não encontrado."
-                });
-            }
-
-            var novaSenha = "Admin@123456";
-
-            usuario.SenhaHash =
-                BCrypt.Net.BCrypt.HashPassword(novaSenha);
-
-            await _context.SaveChangesAsync();
-
-            return Ok(new
-            {
-                mensagem = "Senha do administrador alterada com sucesso."
             });
         }
 

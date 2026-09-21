@@ -5,6 +5,7 @@ using Microsoft.OpenApi.Models;
 using PegaVisaoApi.Data;
 using PegaVisaoApi.Services;
 using System.Text;
+using PegaVisaoApi.Services.MelhorEnvio;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -97,6 +98,14 @@ builder.Services.AddAuthorization();
 
 builder.Services.AddHttpClient<MercadoPagoService>();
 
+builder.Services.Configure<MelhorEnvioOptions>(builder.Configuration.GetSection("MelhorEnvio"));
+builder.Services.AddSingleton<MelhorEnvioProtecao>();
+builder.Services.AddHttpClient<MelhorEnvioOAuthClient>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(15);
+}).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
+builder.Services.AddScoped<MelhorEnvioService>();
+builder.Services.AddHostedService<MelhorEnvioRenovacaoWorker>();
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
