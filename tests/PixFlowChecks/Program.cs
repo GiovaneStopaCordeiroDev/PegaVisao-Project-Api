@@ -74,15 +74,24 @@ await service.CriarPixAsync(new Pedido { Id = 22, ValorTotal = 50 }, "cliente@ex
 using (var body = JsonDocument.Parse(handler.Body!))
     Check(body.RootElement.GetProperty("payer").GetProperty("first_name").GetString() == "APRO",
         "Simulação APRO exige configuração explícita");
+await service.CancelarOrderAsync("ORD01TEST");
+Check(handler.Url == "https://api.mercadopago.com/v1/orders/ORD01TEST/cancel"
+    && handler.Method == HttpMethod.Post && handler.Idempotency == "cancelar-ORD01TEST",
+    "Cancelamento usa endpoint e chave idempotente");
+handler.Status = HttpStatusCode.Conflict;
+try { await service.CancelarOrderAsync("ORD01TEST"); throw new Exception("Aceitou cancelamento recusado"); }
+catch (HttpRequestException e) { Check(e.StatusCode == HttpStatusCode.Conflict, "Cancelamento recusado exige consulta ao provedor"); }
 Console.WriteLine($"{checks} verificações passaram; HTTP simulado, sem acesso ao banco ou Mercado Pago.");
 
 sealed class FakeHandler(JsonElement response) : HttpMessageHandler
 {
-    public string? Url, Bearer, Body;
+    public string? Url, Bearer, Body, Idempotency; public HttpMethod? Method;
     public HttpStatusCode Status = HttpStatusCode.OK;
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         Url = request.RequestUri!.ToString();
+        Method = request.Method;
+        Idempotency = request.Headers.TryGetValues("X-Idempotency-Key", out var keys) ? keys.Single() : null;
         Bearer = request.Headers.Authorization?.Parameter;
         Body = request.Content == null ? null : await request.Content.ReadAsStringAsync(cancellationToken);
         return new HttpResponseMessage(Status) { Content = new StringContent(response.GetRawText(), Encoding.UTF8, "application/json") };

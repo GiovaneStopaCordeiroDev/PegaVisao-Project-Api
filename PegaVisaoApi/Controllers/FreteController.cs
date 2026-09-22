@@ -19,6 +19,10 @@ public class CotarFreteDto
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public class FreteController(FreteService service, ILogger<FreteController> logger) : ControllerBase
 {
+    [HttpGet("modo")]
+    [AllowAnonymous]
+    public IActionResult Modo() => Ok(new { semFreteParaTeste = service.SemFreteParaTeste });
+
     [HttpPost("cotacoes")]
     public Task<IActionResult> Cotar(CotarFreteDto dto, CancellationToken ct) => Executar(async id =>
         await service.CotarAsync(id, dto.Cep, dto.Itens, ct));

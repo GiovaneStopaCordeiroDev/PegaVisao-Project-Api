@@ -194,3 +194,17 @@ real, emissão de etiqueta ou alteração no Supabase foi executada pelo assiste
 Referências: [OAuth e permissões](https://docs.melhorenvio.com.br/reference/fluxo-de-autoriza%C3%A7%C3%A3o),
 [troca e renovação de tokens/User-Agent](https://docs.melhorenvio.com.br/reference/solicitacao-do-token),
 [ambientes separados](https://docs.melhorenvio.com.br/docs/sandbox).
+
+## Teste temporário de cartão sem frete
+
+Após publicar esta versão, configure `Frete__DesabilitadoParaTeste=true` no Render.
+A opção é desligada por padrão e só vale para contas administradoras (IsAdmin no banco).
+Entre com essa conta, volte ao checkout e calcule novamente: selecione “Sem frete — teste”,
+com valor zero. Nesse modo não há consulta ao Melhor Envio, exigência de medidas nem
+contratação de entrega. A cotação continua vinculada ao cliente/carrinho e vence em 15 minutos.
+O pagamento continua no ambiente definido pelas credenciais Mercado Pago: credenciais
+reais podem gerar cobrança real. O modo não altera nem corrige o checkout externo do cartão.
+
+Ao terminar, defina `Frete__DesabilitadoParaTeste=false` e salve/reimplante. Cotações do modo
+anterior passam a ser rejeitadas. Outros clientes continuam com o frete normal durante o teste.
+Nenhuma migration adicional é necessária.

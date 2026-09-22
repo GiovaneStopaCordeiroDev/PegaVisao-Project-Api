@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PegaVisaoApi.Data;
@@ -59,45 +59,11 @@ public class MercadoPagoController : ControllerBase
                 return Ok();
             }
 
-            // Serializa webhooks concorrentes do mesmo pedido no PostgreSQL.
-            await using var transaction = await _context.Database.BeginTransactionAsync();
-            var pedido = await _context.Pedidos
-                .FromSqlInterpolated($"SELECT * FROM \"Pedidos\" WHERE \"Id\" = {pedidoId} FOR UPDATE")
-                .SingleOrDefaultAsync();
-            if (pedido == null)
-            {
-                _logger.LogWarning("MP pedido inexistente: {PedidoId}, recurso {ResourceId}", pedidoId, resourceId);
-                // O pedido é persistido antes da chamada ao provedor.
+            // Payments legados precisam de vínculo já persistido; Orders vinculam por ID/referência.
+            if (type == "payment" && !await _context.Pedidos.AnyAsync(p =>
+                p.Id == pedidoId && p.MercadoPagoPaymentId == estado.PaymentId))
                 return Ok();
-            }
-            if (pedido.ValorTotal != estado.Valor ||
-                (pedido.MercadoPagoOrderId != null && pedido.MercadoPagoOrderId != estado.OrderId) ||
-                (pedido.MercadoPagoPaymentId != null && pedido.MercadoPagoPaymentId != estado.PaymentId) ||
-                (type == "payment" && pedido.MercadoPagoPaymentId == null))
-            {
-                _logger.LogError("MP divergência de vínculo ou valor: pedido {PedidoId}, recurso {ResourceId}", pedidoId, resourceId);
-                return Ok(); // Erro permanente: investigar, sem confirmar nem repetir indefinidamente.
-            }
-
-            pedido.MercadoPagoOrderId = estado.OrderId;
-            pedido.MercadoPagoPaymentId = estado.PaymentId;
-            // Evita que uma consulta anterior à confirmação regrida o status.
-            if (pedido.Status == Status.Pendente || estado.Status != "action_required" && estado.Status != "pending")
-                pedido.MercadoPagoStatus = estado.Status;
-            var transicao = estado.Confirmado && pedido.Status == Status.Pendente;
-            if (transicao)
-            {
-                pedido.Status = Status.Pago;
-                // Futura baixa de estoque: aqui, na mesma transação e sob o mesmo bloqueio.
-                // Ainda não há baixa de estoque implementada no projeto.
-            }
-            if (estado.Confirmado && pedido.Status == Status.Cancelado)
-                _logger.LogWarning("MP pagamento de pedido cancelado: {PedidoId}; requer conciliação", pedidoId);
-
-            await _context.SaveChangesAsync();
-            await transaction.CommitAsync();
-            _logger.LogInformation("MP confirmado na API: pedido {PedidoId}, order {OrderId}, payment {PaymentId}, status {Status}/{Detalhe}, transicaoPago {Transicao}",
-                pedido.Id, estado.OrderId, estado.PaymentId, estado.Status, estado.StatusDetail, transicao);
+            await new EstoqueService(_context).AplicarPagamentoAsync(pedidoId, estado);
             return Ok();
         }
         catch (Exception ex)
@@ -108,6 +74,33 @@ public class MercadoPagoController : ControllerBase
         }
     }
 
+    // Recupera o vínculo quando a resposta da criação foi perdida.
+    // O ID informado pelo administrador é sempre consultado e validado no provedor.
+    [HttpPost("conciliar-estoque/{pedidoId:int}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> ConciliarEstoque(int pedidoId, [FromBody] ConciliarEstoqueDto dto)
+    {
+        if (!await _context.Pedidos.AnyAsync(p => p.Id == pedidoId)) return NotFound();
+        try
+        {
+            var estado = EstadoPagamentoMercadoPago.DaOrder(
+                await _mercadoPagoService.ConsultarOrderAsync(dto.OrderId));
+            if (estado.OrderId != dto.OrderId)
+                return Conflict(new { mensagem = "Recurso retornado diverge da order solicitada." });
+            await new EstoqueService(_context).AplicarPagamentoAsync(pedidoId, estado);
+            return Ok(new { mensagem = "Pagamento consultado e estoque conciliado.", estado.Confirmado,
+                estado.EncerradoSemPagamento });
+        }
+        catch (ArgumentException) { return BadRequest(new { mensagem = "Informe um Order ID válido." }); }
+        catch (InvalidDataException) { return Conflict(new { mensagem = "Order não corresponde ao pedido." }); }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Falha na conciliação administrativa do pedido {PedidoId}", pedidoId);
+            return StatusCode(503, new { mensagem = "Conciliação não concluída. A reserva foi preservada." });
+        }
+    }
+
+    public sealed record ConciliarEstoqueDto(string OrderId);
     [HttpGet("teste-pagamento/{pedidoId:int}")]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> TestarPagamento(int pedidoId)

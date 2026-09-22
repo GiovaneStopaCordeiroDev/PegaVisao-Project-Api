@@ -37,9 +37,15 @@ public static class FreteRegras
         return result;
     }
 
-    public static FreteItem PrepararItem(VariacaoProduto variacao, int quantidade)
+    public static FreteItem PrepararItem(VariacaoProduto variacao, int quantidade, bool exigirMedidas = true)
     {
+        if (quantidade <= 0 || quantidade > variacao.EstoqueDisponivel)
+            throw new FreteException(409, "Quantidade indisponível em estoque. Atualize o carrinho.");
         var p = variacao.Produto;
+        if (p == null || p.Preco <= 0 || decimal.Round(p.Preco, 2) != p.Preco)
+            throw new FreteException(422, "Um produto está com preço inválido. Entre em contato com a loja.");
+        if (!exigirMedidas)
+            return new(variacao.Id, quantidade, p.Preco, 0, 0, 0, 0);
         if (p == null || p.PesoKg is not (> 0 and <= 1000) || p.AlturaCm is not (> 0 and <= 1000) ||
             p.LarguraCm is not (> 0 and <= 1000) || p.ComprimentoCm is not (> 0 and <= 1000))
             throw new FreteException(422, $"O produto {p?.Nome ?? variacao.Id.ToString()} ainda não possui peso e dimensões válidos para entrega. Entre em contato com a loja.");

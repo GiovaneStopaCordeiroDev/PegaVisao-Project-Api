@@ -1,4 +1,4 @@
-﻿namespace PegaVisaoApi.Models
+namespace PegaVisaoApi.Models
 {
     public class VariacaoProduto
     {
@@ -9,6 +9,9 @@
         public string Tamanho { get; set; }
 
         public int Estoque { get; set; }
+        public int EstoqueReservado { get; set; }
+        [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+        public int EstoqueDisponivel => Estoque - EstoqueReservado;
 
         public int ProdutoId { get; set; }
 

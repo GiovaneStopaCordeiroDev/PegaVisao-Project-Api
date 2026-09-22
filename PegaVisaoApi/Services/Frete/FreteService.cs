@@ -13,19 +13,28 @@ public sealed class FreteService(PegaVisaoContext db, MelhorEnvioService conexao
     ILogger<FreteService> logger)
 {
     private readonly MelhorEnvioOptions _options = options.Value;
-
+    // Opt-in explícito da loja; ausente/false mantém o frete normal.
+    public bool SemFreteParaTeste => configuration.GetValue<bool>("Frete:DesabilitadoParaTeste");
+    private string ConexaoAtual(bool semFrete) => semFrete ? "sem-frete-teste" : _options.ConexaoId;
     public async Task<object> CotarAsync(int usuarioId, string cep, List<CreateItemPedidoDto> itens, CancellationToken ct)
     {
+        var semFrete = SemFreteParaTeste;
         var destino = FreteRegras.NormalizarCep(cep);
-        var origem = FreteRegras.NormalizarCep(_options.CepOrigem);
-        var carrinho = await PrepararCarrinhoAsync(itens, ct);
-        var token = await conexao.ObterAccessTokenAsync(ct);
-        var opcoes = await client.CotarAsync(token, origem, destino, carrinho, ct);
+        var origem = semFrete ? "00000000" : FreteRegras.NormalizarCep(_options.CepOrigem);
+        var carrinho = await PrepararCarrinhoAsync(itens, semFrete, ct);
+        List<FreteOpcao> opcoes;
+        if (semFrete)
+            opcoes = [new(int.MaxValue, "Sem frete — teste", "Teste de pagamento", 0m, 0, null)];
+        else
+        {
+            var token = await conexao.ObterAccessTokenAsync(ct);
+            opcoes = await client.CotarAsync(token, origem, destino, carrinho, ct);
+        }
         if (opcoes.Count == 0) throw new FreteException(422, "Nenhum serviço de entrega disponível para este CEP e carrinho.");
         var cotacao = new CotacaoFrete
         {
             Id = Guid.NewGuid(), UsuarioId = usuarioId, CepDestino = destino,
-            ConexaoId = _options.ConexaoId, Sandbox = _options.Sandbox,
+            ConexaoId = ConexaoAtual(semFrete), Sandbox = !semFrete && _options.Sandbox,
             CarrinhoHash = FreteRegras.HashCarrinho(carrinho, origem),
             Subtotal = carrinho.Sum(i => i.Preco * i.Quantidade),
             OpcoesJson = JsonSerializer.Serialize(opcoes), CriadaEm = DateTime.UtcNow,
@@ -40,7 +49,8 @@ public sealed class FreteService(PegaVisaoContext db, MelhorEnvioService conexao
     public async Task<object> ConsultarAsync(Guid id, int usuarioId, CancellationToken ct)
     {
         var cotacao = await BuscarAsync(id, usuarioId, ct);
-        FreteRegras.ValidarCotacao(cotacao, usuarioId, cotacao.CepDestino, cotacao.CarrinhoHash, _options.ConexaoId, DateTime.UtcNow);
+        var semFrete = SemFreteParaTeste;
+        FreteRegras.ValidarCotacao(cotacao, usuarioId, cotacao.CepDestino, cotacao.CarrinhoHash, ConexaoAtual(semFrete), DateTime.UtcNow);
         return Resposta(cotacao);
     }
 
@@ -48,10 +58,11 @@ public sealed class FreteService(PegaVisaoContext db, MelhorEnvioService conexao
         List<CreateItemPedidoDto> itens, CancellationToken ct)
     {
         var cotacao = await BuscarAsync(cotacaoId, pedido.UsuarioId, ct);
-        var carrinho = await PrepararCarrinhoAsync(itens, ct);
+        var semFrete = SemFreteParaTeste;
+        var carrinho = await PrepararCarrinhoAsync(itens, semFrete, ct);
         var destino = FreteRegras.NormalizarCep(pedido.Cep);
-        var hash = FreteRegras.HashCarrinho(carrinho, FreteRegras.NormalizarCep(_options.CepOrigem));
-        FreteRegras.ValidarCotacao(cotacao, pedido.UsuarioId, destino, hash, _options.ConexaoId, DateTime.UtcNow);
+        var hash = FreteRegras.HashCarrinho(carrinho, semFrete ? "00000000" : FreteRegras.NormalizarCep(_options.CepOrigem));
+        FreteRegras.ValidarCotacao(cotacao, pedido.UsuarioId, destino, hash, ConexaoAtual(semFrete), DateTime.UtcNow);
         if (cotacao.Sandbox && !configuration.GetValue<bool>("MercadoPago:PixTeste"))
             throw new FreteException(409, "O frete está em Sandbox. Para cobrar de verdade, conecte o Melhor Envio em produção. Para testar, configure também o pagamento em ambiente de teste.");
         if (cotacao.Sandbox && !string.Equals(pedido.FormaPagamento, "Pix", StringComparison.OrdinalIgnoreCase))
@@ -80,6 +91,7 @@ public sealed class FreteService(PegaVisaoContext db, MelhorEnvioService conexao
             c.UsuarioId == pedido.UsuarioId && c.ConsumidaEm == null && c.ExpiraEm > DateTime.UtcNow)
             .ExecuteUpdateAsync(update => update.SetProperty(c => c.ConsumidaEm, DateTime.UtcNow), ct);
         if (consumidas != 1) throw new FreteException(409, "Cotação vencida ou já utilizada. Confira Meus pedidos e recalcule o frete.");
+        await new EstoqueService(db).ReservarAsync(pedido, ct);
         db.Pedidos.Add(pedido);
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
@@ -87,14 +99,14 @@ public sealed class FreteService(PegaVisaoContext db, MelhorEnvioService conexao
             pedido.Id, cotacao.Id, servicoId, pedido.ValorFrete, pedido.ValorTotal);
     }
 
-    private async Task<List<FreteItem>> PrepararCarrinhoAsync(List<CreateItemPedidoDto> itens, CancellationToken ct)
+    private async Task<List<FreteItem>> PrepararCarrinhoAsync(List<CreateItemPedidoDto> itens, bool semFrete, CancellationToken ct)
     {
         var quantidades = FreteRegras.AgruparItens(itens);
         var ids = quantidades.Keys.ToArray();
         var variacoes = await db.VariacaoProdutos.AsNoTracking().Include(v => v.Produto)
             .Where(v => ids.Contains(v.Id)).ToListAsync(ct);
         if (variacoes.Count != ids.Length) throw new FreteException(400, "Um produto do carrinho não está mais disponível.");
-        return variacoes.Select(v => FreteRegras.PrepararItem(v, quantidades[v.Id])).ToList();
+        return variacoes.Select(v => FreteRegras.PrepararItem(v, quantidades[v.Id], exigirMedidas: !semFrete)).ToList();
     }
 
     private async Task<CotacaoFrete> BuscarAsync(Guid id, int usuarioId, CancellationToken ct) =>
@@ -108,6 +120,7 @@ public sealed class FreteService(PegaVisaoContext db, MelhorEnvioService conexao
     private static object Resposta(CotacaoFrete c) => new
     {
         c.Id, c.CepDestino, c.Subtotal, c.ExpiraEm, c.Sandbox,
+        SemFreteParaTeste = c.ConexaoId == "sem-frete-teste",
         opcoes = Opcoes(c).Select(o => new { o.ServicoId, o.Servico, o.Transportadora, o.Valor, o.PrazoDias })
     };
 }

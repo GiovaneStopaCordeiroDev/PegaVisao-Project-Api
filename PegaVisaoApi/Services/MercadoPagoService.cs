@@ -242,6 +242,20 @@ namespace PegaVisaoApi.Services
             return document.RootElement.Clone();
         }
 
+        public async Task CancelarOrderAsync(string orderId)
+        {
+            if (!orderId.StartsWith("ORD", StringComparison.Ordinal) || !orderId.All(char.IsAsciiLetterOrDigit))
+                throw new ArgumentException("Order ID inválido.");
+            using var request = new HttpRequestMessage(HttpMethod.Post,
+                $"https://api.mercadopago.com/v1/orders/{orderId}/cancel");
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer",
+                _configuration["MercadoPago:AccessToken"]);
+            request.Headers.Add("X-Idempotency-Key", $"cancelar-{orderId}");
+            request.Content = new StringContent("{}", Encoding.UTF8, "application/json");
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            using var response = await _httpClient.SendAsync(request, timeout.Token);
+            response.EnsureSuccessStatusCode();
+        }
         public async Task<JsonElement> ConsultarPagamentoAsync(string paymentId)
         {
             if (string.IsNullOrWhiteSpace(paymentId) || !paymentId.All(char.IsAsciiDigit))

@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using PegaVisaoApi.Data;
@@ -11,9 +12,11 @@ using PegaVisaoApi.Data;
 namespace PegaVisaoApi.Migrations
 {
     [DbContext(typeof(PegaVisaoContext))]
-    partial class PegaVisaoContextModelSnapshot : ModelSnapshot
+    [Migration("20260922160750_AdicionarReservaEstoque")]
+    partial class AdicionarReservaEstoque
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

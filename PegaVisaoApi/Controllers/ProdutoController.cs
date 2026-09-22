@@ -125,6 +125,17 @@ namespace PegaVisaoApi.Controllers
             if (produto == null)
                 return NotFound();
 
+            if (dto.Variacoes.Any(v => v.Estoque < 0))
+                return BadRequest(new { mensagem = "O estoque não pode ser negativo." });
+            foreach (var atual in produto.Variacoes)
+            {
+                var novo = dto.Variacoes.FirstOrDefault(v => v.Id == atual.Id);
+                if (novo != null && novo.Estoque < atual.EstoqueReservado)
+                    return Conflict(new { mensagem = "O estoque físico não pode ser menor que a quantidade reservada." });
+                if (novo == null && _context.ItemPedidos.Any(i => i.VariacaoProdutoId == atual.Id))
+                    return Conflict(new { mensagem = "Uma variação com pedidos não pode ser excluída. Zere o estoque disponível para suspender as vendas." });
+            }
+
             // Atualiza os dados principais do produto
             produto.Nome = dto.Nome;
             produto.Descricao = dto.Descricao;
@@ -191,6 +202,10 @@ namespace PegaVisaoApi.Controllers
                 {
                     _context.SaveChanges();
                 }
+                catch (DbUpdateConcurrencyException)
+                {
+                    return Conflict(new { mensagem = "O estoque mudou durante a edição. Atualize o produto e tente novamente." });
+                }
                 catch (Exception ex)
                 {
                     Console.WriteLine("========== ERRO AO ALTERAR PRODUTO ==========");
@@ -228,6 +243,8 @@ namespace PegaVisaoApi.Controllers
             if (produto == null)
                 return NotFound();
 
+            if (_context.ItemPedidos.Any(i => i.VariacaoProduto.ProdutoId == id))
+                return Conflict(new { mensagem = "Este produto possui pedidos e deve ser preservado no histórico." });
             _context.Produtos.Remove(produto);
             _context.SaveChanges();
 

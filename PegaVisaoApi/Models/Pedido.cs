@@ -13,6 +13,8 @@ namespace PegaVisaoApi.Models
     {
         public int Id { get; set; }
         public bool ExcluidoPeloCliente { get; set; }
+        public EstadoEstoquePedido EstadoEstoque { get; set; }
+        public DateTime? ProximaConsultaEstoqueEm { get; set; }
 
         public DateTime DataPedido { get; set; } = DateTime.UtcNow;
 

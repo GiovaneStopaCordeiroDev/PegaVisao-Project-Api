@@ -12,6 +12,12 @@
 
                 protected override void OnModelCreating(ModelBuilder modelBuilder)
                 {
+                    modelBuilder.Entity<VariacaoProduto>()
+                        .ToTable(t => t.HasCheckConstraint("CK_Variacao_Estoque",
+                            "\"Estoque\" >= 0 AND \"EstoqueReservado\" >= 0 AND \"EstoqueReservado\" <= \"Estoque\""));
+                    modelBuilder.Entity<VariacaoProduto>().Property(v => v.Estoque).IsConcurrencyToken();
+                    modelBuilder.Entity<VariacaoProduto>().Property(v => v.EstoqueReservado).IsConcurrencyToken();
+                    modelBuilder.Entity<Pedido>().HasIndex(p => new { p.EstadoEstoque, p.ProximaConsultaEstoqueEm });
                     modelBuilder.Entity<Produto>()
                         .HasOne(produto => produto.Categoria)
                         .WithMany(categoria => categoria.Produtos)
@@ -34,7 +40,7 @@
                         .HasOne(item => item.VariacaoProduto)
                         .WithMany()
                         .HasForeignKey(item => item.VariacaoProdutoId)
-                        .OnDelete(DeleteBehavior.Cascade);
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     modelBuilder.Entity<Usuario>()
                         .HasOne(usuario => usuario.Endereco)

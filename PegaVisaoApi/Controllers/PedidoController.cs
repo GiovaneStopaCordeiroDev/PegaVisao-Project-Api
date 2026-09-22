@@ -413,11 +413,7 @@ namespace PegaVisaoApi.Controllers
                 return NotFound();
             }
 
-            _mapper.Map(dto, pedido);
-
-            await _context.SaveChangesAsync();
-
-            return NoContent();
+            return Conflict(new { mensagem = "Os itens de um pedido não podem ser alterados após sua criação. Crie um novo pedido." });
         }
 
         // ==========================================
@@ -459,13 +455,25 @@ namespace PegaVisaoApi.Controllers
                 });
             }
 
-            // Não sobrescreve Pago se o webhook confirmar entre a leitura e a escrita.
-            var cancelados = await _context.Pedidos
-                .Where(p => p.Id == id && p.UsuarioId == usuarioId && p.Status == Status.Pendente)
-                .ExecuteUpdateAsync(update => update.SetProperty(p => p.Status, Status.Cancelado));
-            if (cancelados == 0)
-                return BadRequest(new { mensagem = "Este pedido não pode mais ser cancelado." });
-
+            if (pedido.MercadoPagoOrderId == null)
+                return Conflict(new { mensagem = "Pagamento sem identificação confirmada. A reserva será mantida até a conciliação." });
+            try
+            {
+                try { await _mercadoPagoService.CancelarOrderAsync(pedido.MercadoPagoOrderId); }
+                catch (HttpRequestException) { /* Consulta resolve cancelamento repetido ou pagamento concorrente. */ }
+                var estado = EstadoPagamentoMercadoPago.DaOrder(
+                    await _mercadoPagoService.ConsultarOrderAsync(pedido.MercadoPagoOrderId));
+                _context.Entry(pedido).State = EntityState.Detached;
+                await new EstoqueService(_context).AplicarPagamentoAsync(id, estado);
+                if (!estado.EncerradoSemPagamento)
+                    return Conflict(new { mensagem = estado.Confirmado
+                        ? "O pagamento já foi confirmado; o pedido não foi cancelado."
+                        : "O pagamento ainda não foi encerrado. Tente novamente." });
+            }
+            catch (Exception)
+            {
+                return StatusCode(503, new { mensagem = "Não foi possível confirmar o cancelamento. A reserva foi mantida; tente novamente." });
+            }
             return Ok(new
             {
                 mensagem = "Pedido cancelado com sucesso.",
@@ -508,11 +516,7 @@ namespace PegaVisaoApi.Controllers
                 return NotFound();
             }
 
-            _context.Pedidos.Remove(pedido);
-
-            await _context.SaveChangesAsync();
-
-            return NoContent();
+            return Conflict(new { mensagem = "Preserve o histórico de pagamento e estoque. Use a exclusão da lista para pedidos cancelados." });
         }
     }
 }

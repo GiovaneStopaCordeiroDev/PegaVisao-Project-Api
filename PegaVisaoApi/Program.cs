@@ -9,6 +9,9 @@ using PegaVisaoApi.Services.MelhorEnvio;
 using PegaVisaoApi.Services.Frete;
 
 var builder = WebApplication.CreateBuilder(args);
+// Suspensão temporária aprovada pela loja. Variáveis do Render têm prioridade.
+builder.Configuration.AddJsonFile("frete-teste.json", optional: true, reloadOnChange: false)
+    .AddEnvironmentVariables().AddCommandLine(args);
 
 // Add services to the container.
 
@@ -112,6 +115,8 @@ builder.Services.AddHttpClient<MelhorEnvioFreteClient>(client =>
     client.Timeout = TimeSpan.FromSeconds(20);
 }).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
 builder.Services.AddScoped<FreteService>();
+builder.Services.AddScoped<EstoqueService>();
+builder.Services.AddHostedService<EstoqueConciliacaoWorker>();
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
