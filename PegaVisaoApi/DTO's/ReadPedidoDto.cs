@@ -4,6 +4,9 @@ namespace PegaVisaoApi.DTO_s
     {
         public int Id { get; set; }
 
+        public DateTime? PagamentoExpiraEm { get; set; }
+        public DateTime ServidorAgora => DateTime.UtcNow;
+
         public DateTime DataPedido { get; set; }
 
         public decimal ValorTotal { get; set; }

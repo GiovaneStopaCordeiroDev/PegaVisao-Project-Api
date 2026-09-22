@@ -16,6 +16,8 @@ namespace PegaVisaoApi.Models
         public EstadoEstoquePedido EstadoEstoque { get; set; }
         public DateTime? ProximaConsultaEstoqueEm { get; set; }
 
+        public DateTime? PagamentoExpiraEm { get; set; }
+
         public DateTime DataPedido { get; set; } = DateTime.UtcNow;
 
         public decimal ValorTotal { get; set; }

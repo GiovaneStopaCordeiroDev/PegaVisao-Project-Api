@@ -135,6 +135,50 @@ try
     setup.Pedidos.Add(legacy); await setup.SaveChangesAsync();
     await Apply(legacy.Id, State(legacy.Id, 10));
     await AssertStock(2, 1, "Pedido legado não desconta estoque retroativamente");
+    var adminRole = typeof(PegaVisaoApi.Controllers.AdminPedidosController)
+        .GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute), true)
+        .Cast<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>().Single();
+    Check(adminRole.Roles == "Admin", "Consulta de todos os pedidos exige papel Admin");
+    var outroCliente = new Usuario { Nome = "Outro cliente", Email = "outro@example.invalid", SenhaHash = "fake" };
+    setup.Usuarios.Add(outroCliente); await setup.SaveChangesAsync();
+    await setup.Pedidos.Where(p => p.Id == legacy.Id)
+        .ExecuteUpdateAsync(u => u.SetProperty(p => p.UsuarioId, outroCliente.Id));
+    await setup.Pedidos.Where(p => p.Id == cancelId)
+        .ExecuteUpdateAsync(u => u.SetProperty(p => p.ExcluidoPeloCliente, true));
+    await using var adminDb = Db();
+    var controller = new PegaVisaoApi.Controllers.AdminPedidosController(adminDb);
+    async Task<JsonElement> Listar(string filtro, int pagina = 1, int tamanho = 20) {
+        var response = await controller.Listar(filtro, pagina, tamanho);
+        var ok = response as Microsoft.AspNetCore.Mvc.OkObjectResult
+            ?? throw new Exception("Falha na consulta administrativa");
+        return JsonSerializer.SerializeToElement(ok.Value);
+    }
+    var todos = await Listar("todos");
+    Check(todos.GetProperty("total").GetInt32() == await setup.Pedidos.CountAsync(),
+        "Admin vê todos os pedidos, inclusive cancelado ocultado pelo cliente");
+    Check(todos.GetProperty("pedidos").EnumerateArray().Any(p =>
+        p.GetProperty("Cliente").GetProperty("Nome").GetString() == "Outro cliente"),
+        "Admin visualiza pedidos de outros clientes");
+    var pendentes = await Listar("pendentes");
+    Check(pendentes.GetProperty("pedidos").GetArrayLength() > 0 &&
+        pendentes.GetProperty("pedidos").EnumerateArray().All(p => p.GetProperty("Status").GetString() == "Pendente"),
+        "Filtro pendentes retorna apenas compras aguardando pagamento");
+    var concluidos = await Listar("concluidos");
+    Check(concluidos.GetProperty("pedidos").GetArrayLength() > 0 &&
+        concluidos.GetProperty("pedidos").EnumerateArray().All(p => p.GetProperty("Status").GetString() is "Pago" or "Enviado" or "Entregue"),
+        "Filtro concluídos retorna apenas pagamentos confirmados");
+    var cancelados = await Listar("cancelados");
+    Check(cancelados.GetProperty("pedidos").EnumerateArray().All(p => p.GetProperty("Status").GetString() == "Cancelado"),
+        "Filtro cancelados preserva histórico separado");
+    var paginaUm = await Listar("todos", 1, 1);
+    var paginaDois = await Listar("todos", 2, 1);
+    Check(paginaUm.GetProperty("pedidos").GetArrayLength() == 1 &&
+        paginaUm.GetProperty("pedidos")[0].GetProperty("Id").GetInt32() !=
+        paginaDois.GetProperty("pedidos")[0].GetProperty("Id").GetInt32(),
+        "Paginação retorna pedidos diferentes sem repetir a primeira página");
+    Check(await controller.Listar("invalido") is Microsoft.AspNetCore.Mvc.BadRequestObjectResult &&
+        await controller.Listar("todos", 0) is Microsoft.AspNetCore.Mvc.BadRequestObjectResult,
+        "Filtro e página inválidos são rejeitados");
     Console.WriteLine($"{count} verificações aprovadas, incluindo concorrência real em PostgreSQL.");
 }
 finally

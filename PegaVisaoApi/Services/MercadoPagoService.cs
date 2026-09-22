@@ -78,12 +78,14 @@ namespace PegaVisaoApi.Services
                 type = "online",
 
                 processing_mode = "manual",
+                expiration_time = "PT15M",
 
                 total_amount = valorTotal,
 
                 external_reference = pedido.Id.ToString(),
 
-                items = itens
+                items = itens,
+                config = new { payment_method = ParcelamentoProduto.ConfigurarCheckout(pedido.ValorTotal) }
             };
 
             var json = JsonSerializer.Serialize(body);
@@ -188,6 +190,7 @@ namespace PegaVisaoApi.Services
                     new
                     {
                         amount = valorTotal,
+                        expiration_time = "PT30M",
 
                         payment_method = new
                         {

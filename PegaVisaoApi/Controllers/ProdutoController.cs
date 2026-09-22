@@ -145,6 +145,8 @@ namespace PegaVisaoApi.Controllers
             produto.LarguraCm = dto.LarguraCm;
             produto.ComprimentoCm = dto.ComprimentoCm;
             produto.ImagemPrincipal = dto.ImagemPrincipal;
+            produto.ImagemSecundaria = dto.ImagemSecundaria;
+            produto.ImagemTerciaria = dto.ImagemTerciaria;
             produto.CategoriaId = dto.CategoriaId;
 
 

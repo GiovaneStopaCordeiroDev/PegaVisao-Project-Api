@@ -36,3 +36,23 @@ Para executar também os cenários de concorrência real:
 
 Referência do cancelamento do provedor:
 https://www.mercadopago.com.br/developers/pt/reference/online-payments/checkout-pro/cancel-order/post
+
+## Prazo de pagamento e galeria
+- Novos pedidos recebem PagamentoExpiraEm em UTC ao iniciar a criação do pagamento (15 minutos).
+- O Checkout Pro recebe expiration_time=PT15M.
+- O Pix recebe expiration_time=PT30M, mínimo documentado pelo Mercado Pago. Aos 15 minutos, o conciliador solicita cancelamento se a order estiver created/action_required e consulta o resultado.
+- O cancelamento acontece no próximo ciclo do conciliador, não exatamente no segundo zero. Falhas de rede mantêm a reserva para nova tentativa. Processing/approved/processed não são cancelados pelo prazo.
+- O contador usa o prazo persistido e a hora do servidor. Em zero, oculta o QR Code e aguarda conciliação; não confirma cancelamento pelo relógio do navegador.
+- A lista de pedidos atualiza status enquanto houver pedidos pendentes.
+- Pedidos antigos ficam com prazo nulo, sem cancelamento retroativo.
+- ImagemPrincipal continua obrigatória; ImagemSecundaria e ImagemTerciaria são opcionais. Cadastro/edição aceitam URLs e a página mostra miniaturas das imagens cadastradas.
+- Aplicar a migration AdicionarPrazoPagamentoEImagensProduto antes do deploy. Ainda não aplicada em produção nesta alteração.
+- Referências: https://www.mercadopago.com.br/developers/pt/docs/checkout-api-orders/payment-integration/pix e https://www.mercadopago.com.br/developers/pt/docs/checkout-pro-orders/additional-settings/define-order-validity
+
+## Parcelamento dos produtos
+- Confirmado pela loja: até 12 parcelas sem juros. Política de exibição adotada: parcela mínima de R$ 5, reduzindo a quantidade para produtos baratos.
+- ReadProdutoDto retorna parcelamento.quantidade e parcelamento.valorParcela, calculados no backend; não há taxas do cartão estimadas pelo frontend.
+- Checkout Pro recebe o mesmo limite calculado pelo total (produtos + frete), com installments_cost=seller e interest_free no intervalo de 2 ao limite.
+- Isso coloca o custo do parcelamento sem juros na loja. Conferir a habilitação e as taxas da conta Mercado Pago antes de publicar.
+- Valores da página são simulação do produto, sem frete; a aprovação e disponibilidade final são confirmadas no checkout. Ajustes de centavos podem ocorrer.
+- Referência: https://www.mercadopago.com.br/developers/pt/reference/online-payments/checkout-pro/create-order/post

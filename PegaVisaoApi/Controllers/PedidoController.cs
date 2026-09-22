@@ -117,6 +117,9 @@ namespace PegaVisaoApi.Controllers
                 );
             }
 
+            pedidoComItens.PagamentoExpiraEm = DateTime.UtcNow.AddMinutes(15);
+            await _context.SaveChangesAsync();
+
             try
             {
                 // ==========================================
@@ -394,7 +397,7 @@ namespace PegaVisaoApi.Controllers
             var pedido = await _context.Pedidos.AsNoTracking()
                 .Where(p => p.Id == id && p.UsuarioId == usuarioId)
                 .Select(p => new { p.Id, Status = p.Status.ToString(), p.MercadoPagoStatus,
-                    p.MercadoPagoOrderId, p.MercadoPagoPaymentId })
+                    p.MercadoPagoOrderId, p.MercadoPagoPaymentId, p.PagamentoExpiraEm, ServidorAgora = DateTime.UtcNow })
                 .SingleOrDefaultAsync();
             return pedido == null ? NotFound() : Ok(pedido);
         }

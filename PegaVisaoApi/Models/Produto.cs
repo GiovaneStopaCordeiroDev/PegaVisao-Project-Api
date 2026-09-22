@@ -12,6 +12,8 @@ namespace PegaVisaoApi.Models
         public decimal? ComprimentoCm { get; set; }
 
         public string ImagemPrincipal { get; set; }
+        public string? ImagemSecundaria { get; set; }
+        public string? ImagemTerciaria { get; set; }
         public int CategoriaId { get; set; }
         public virtual Categoria Categoria { get; set; }
         public virtual ICollection<VariacaoProduto> Variacoes { get; set; }

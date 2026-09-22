@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using PegaVisaoApi.Data;
 using PegaVisaoApi.Models;
 
@@ -42,8 +42,15 @@ public sealed class EstoqueConciliacaoWorker(IServiceScopeFactory scopes,
                             continue;
                         }
                         var mp = itemScope.ServiceProvider.GetRequiredService<MercadoPagoService>();
-                        var estado = EstadoPagamentoMercadoPago.DaOrder(
-                            await mp.ConsultarOrderAsync(pedido.MercadoPagoOrderId));
+                        var order = await mp.ConsultarOrderAsync(pedido.MercadoPagoOrderId);
+                        if (PrazoPagamento.DeveCancelar(pedido.PagamentoExpiraEm, DateTime.UtcNow,
+                            order.GetProperty("status").GetString()))
+                        {
+                            try { await mp.CancelarOrderAsync(pedido.MercadoPagoOrderId); }
+                            catch (HttpRequestException) { /* Reconsulta resolve corrida com aprovação. */ }
+                            order = await mp.ConsultarOrderAsync(pedido.MercadoPagoOrderId);
+                        }
+                        var estado = EstadoPagamentoMercadoPago.DaOrder(order);
                         await itemScope.ServiceProvider.GetRequiredService<EstoqueService>()
                             .AplicarPagamentoAsync(id, estado, stoppingToken);
                     }

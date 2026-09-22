@@ -81,6 +81,36 @@ Check(handler.Url == "https://api.mercadopago.com/v1/orders/ORD01TEST/cancel"
 handler.Status = HttpStatusCode.Conflict;
 try { await service.CancelarOrderAsync("ORD01TEST"); throw new Exception("Aceitou cancelamento recusado"); }
 catch (HttpRequestException e) { Check(e.StatusCode == HttpStatusCode.Conflict, "Cancelamento recusado exige consulta ao provedor"); }
+var agora = DateTime.UtcNow;
+Check(!PrazoPagamento.DeveCancelar(null, agora, "action_required"), "Pedidos antigos não ganham prazo retroativo");
+Check(!PrazoPagamento.DeveCancelar(agora.AddMinutes(1), agora, "action_required"), "Antes do prazo mantém pagamento");
+Check(PrazoPagamento.DeveCancelar(agora, agora, "action_required"), "Pix aguardando pagamento pode ser cancelado no prazo");
+Check(PrazoPagamento.DeveCancelar(agora, agora, "created"), "Checkout não iniciado pode ser cancelado");
+foreach (var status in new[] { "processing", "processed", "in_process", "authorized" })
+    Check(!PrazoPagamento.DeveCancelar(agora.AddMinutes(-1), agora, status), $"Prazo preserva pagamento {status}");
+handler.Status = HttpStatusCode.OK;
+await service.CriarPixAsync(new Pedido { Id = 22, ValorTotal = 50 }, "cliente@example.com", "Cliente");
+using (var body = JsonDocument.Parse(handler.Body!))
+    Check(body.RootElement.GetProperty("transactions").GetProperty("payments")[0]
+        .GetProperty("expiration_time").GetString() == "PT30M", "Pix respeita mínimo de 30 minutos do provedor");
+await service.CriarOrderAsync(new Pedido { Id = 23, ValorTotal = 50,
+    Itens = new List<ItemPedido> { new() { Quantidade = 1, PrecoUnitario = 50,
+        VariacaoProduto = new() { Produto = new() { Nome = "Teste" } } } } });
+using (var body = JsonDocument.Parse(handler.Body!))
+    Check(body.RootElement.GetProperty("expiration_time").GetString() == "PT15M", "Checkout Pro recebe validade de 15 minutos");
+Check(ParcelamentoProduto.Calcular(120).Quantidade == 12 && ParcelamentoProduto.Calcular(120).ValorParcela == 10,
+    "Produto de 120 anuncia 12 parcelas de 10");
+Check(ParcelamentoProduto.Calcular(25).Quantidade == 5, "Quantidade respeita mínimo da loja de 5 reais");
+Check(ParcelamentoProduto.Calcular(1).Quantidade == 1, "Produto de teste de 1 real não anuncia parcelamento");
+Check(ParcelamentoProduto.Calcular(199.90m).ValorParcela == 16.66m, "Simulação arredonda centavos");
+using (var body = JsonDocument.Parse(handler.Body!))
+{
+    var pagamento = body.RootElement.GetProperty("config").GetProperty("payment_method");
+    Check(pagamento.GetProperty("max_installments").GetInt32() == 10, "Checkout usa total de 50 para máximo de parcelas");
+    Check(pagamento.GetProperty("installments_cost").GetString() == "seller"
+        && pagamento.GetProperty("installments").GetProperty("interest_free").GetProperty("values")[1].GetInt32() == 10,
+        "Checkout alinha parcelas sem juros à simulação");
+}
 Console.WriteLine($"{checks} verificações passaram; HTTP simulado, sem acesso ao banco ou Mercado Pago.");
 
 sealed class FakeHandler(JsonElement response) : HttpMessageHandler

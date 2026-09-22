@@ -16,6 +16,8 @@ namespace PegaVisaoApi.DTO_s
 
         [Required(ErrorMessage = "O campo ImagemPrincipal é obrigatório.")]
         public string ImagemPrincipal { get; set; }
+        public string? ImagemSecundaria { get; set; }
+        public string? ImagemTerciaria { get; set; }
 
         [Required(ErrorMessage = "O campo Categoria é obrigatório.")]
         public int CategoriaId { get; set; }
