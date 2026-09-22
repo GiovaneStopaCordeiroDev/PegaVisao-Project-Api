@@ -195,16 +195,20 @@ Referências: [OAuth e permissões](https://docs.melhorenvio.com.br/reference/fl
 [troca e renovação de tokens/User-Agent](https://docs.melhorenvio.com.br/reference/solicitacao-do-token),
 [ambientes separados](https://docs.melhorenvio.com.br/docs/sandbox).
 
-## Teste temporário de cartão sem frete
+## Frete reativado
 
-Após publicar esta versão, configure `Frete__DesabilitadoParaTeste=true` no Render.
-A opção é desligada por padrão e só vale para contas administradoras (IsAdmin no banco).
-Entre com essa conta, volte ao checkout e calcule novamente: selecione “Sem frete — teste”,
-com valor zero. Nesse modo não há consulta ao Melhor Envio, exigência de medidas nem
-contratação de entrega. A cotação continua vinculada ao cliente/carrinho e vence em 15 minutos.
-O pagamento continua no ambiente definido pelas credenciais Mercado Pago: credenciais
-reais podem gerar cobrança real. O modo não altera nem corrige o checkout externo do cartão.
+O arquivo frete-teste.json define Frete:DesabilitadoParaTeste=false.
+O checkout volta a consultar o Melhor Envio e exigir a escolha da entrega.
+A reserva e a baixa de estoque continuam funcionando normalmente.
 
-Ao terminar, defina `Frete__DesabilitadoParaTeste=false` e salve/reimplante. Cotações do modo
-anterior passam a ser rejeitadas. Outros clientes continuam com o frete normal durante o teste.
-Nenhuma migration adicional é necessária.
+No Render, variáveis de ambiente têm prioridade sobre o arquivo:
+- Frete__DesabilitadoParaTeste=false (ou remova essa variável).
+- MelhorEnvio__Sandbox=false para utilizar a conexão de produção já autorizada.
+
+Cotações antigas do modo sem frete são rejeitadas. Volte ao checkout e calcule
+novamente antes de pagar. Pedidos anteriores preservam os dados originais de entrega.
+Não é necessária nova migration.
+
+O modo temporário permanece disponível no projeto, mas desligado. Se habilitado
+explicitamente, afeta toda a loja e não contrata entrega. Não altera o ambiente
+do Mercado Pago: com credenciais de produção, pagamentos continuam reais.
