@@ -81,6 +81,16 @@ if (string.IsNullOrEmpty(jwtKey))
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
+        options.Events = new JwtBearerEvents {
+            OnTokenValidated = async context => {
+                var id = context.Principal?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                var versao = context.Principal?.FindFirst("versao")?.Value ?? "0";
+                if (!int.TryParse(id, out var usuarioId) || !int.TryParse(versao, out var versaoToken)) { context.Fail("Sessão inválida."); return; }
+                var db = context.HttpContext.RequestServices.GetRequiredService<PegaVisaoContext>();
+                var atual = await db.Usuarios.AsNoTracking().Where(u => u.Id == usuarioId).Select(u => (int?)u.VersaoSessao).SingleOrDefaultAsync();
+                if (atual == null || atual != versaoToken) context.Fail("Sessão expirada. Entre novamente.");
+            }
+        };
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuerSigningKey = true,
@@ -99,6 +109,17 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 
 builder.Services.AddAuthorization();
+builder.Services.AddHttpClient<IEmailRecuperacao, EmailRecuperacao>(client => client.Timeout = TimeSpan.FromSeconds(15))
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
+builder.Services.AddSingleton<IGoogleIdentidade, GoogleIdentidade>();
+builder.Services.AddRateLimiter(options => {
+    options.RejectionStatusCode = 429;
+    options.AddPolicy("autenticacao", context => System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "desconhecido",
+        _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions {
+            PermitLimit = 15, Window = TimeSpan.FromMinutes(1), QueueLimit = 0, AutoReplenishment = true
+        }));
+});
 
 builder.Services.AddHttpClient<MercadoPagoService>();
 
@@ -132,6 +153,7 @@ app.UseHttpsRedirection();
 app.UseCors("Frontend");
 
 // IMPORTANTE: Authentication vem antes de Authorization
+app.UseRateLimiter();
 app.UseAuthentication();
 
 app.UseAuthorization();

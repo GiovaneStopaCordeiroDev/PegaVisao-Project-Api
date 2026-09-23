@@ -74,6 +74,9 @@
                 entity.HasIndex(c => c.ExpiraEm);
             });
             modelBuilder.Entity<Pedido>().HasIndex(p => p.FreteCotacaoId).IsUnique();
+            modelBuilder.Entity<Usuario>().HasIndex(u => u.GoogleSubject).IsUnique();
+            modelBuilder.Entity<Usuario>().Property(u => u.GoogleSubject).HasMaxLength(255);
+            modelBuilder.Entity<Usuario>().Property(u => u.RecuperacaoHash).HasMaxLength(64);
             base.OnModelCreating(modelBuilder);
         }
 

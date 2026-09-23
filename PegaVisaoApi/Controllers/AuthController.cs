@@ -12,7 +12,8 @@ namespace PegaVisaoApi.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class AuthController : ControllerBase
+    [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("autenticacao")]
+    public partial class AuthController : ControllerBase
     {
         private readonly PegaVisaoContext _context;
         private readonly IConfiguration _configuration;
@@ -28,8 +29,14 @@ namespace PegaVisaoApi.Controllers
         [HttpPost("registrar")]
         public async Task<IActionResult> Registrar(CreateUsuarioDto dto)
         {
+            dto.Email = dto.Email.Trim().ToLowerInvariant();
+            if (!new System.ComponentModel.DataAnnotations.EmailAddressAttribute().IsValid(dto.Email) ||
+                string.IsNullOrWhiteSpace(dto.Nome) || !SenhaPermitida(dto.Senha))
+                return BadRequest(new { mensagem = "Informe nome, e-mail válido e senha com pelo menos 8 caracteres (máximo 72 bytes)." });
+            await using var transacao = await _context.Database.BeginTransactionAsync();
+            await BloquearEmail(dto.Email);
             var emailExiste = await _context.Usuarios
-                .AnyAsync(u => u.Email == dto.Email);
+                .AnyAsync(u => u.Email.ToLower() == dto.Email.Trim().ToLower());
 
             if (emailExiste)
             {
@@ -51,6 +58,7 @@ namespace PegaVisaoApi.Controllers
 
             await _context.SaveChangesAsync();
 
+            await transacao.CommitAsync();
             return Created("", new
             {
                 mensagem = "Usuário cadastrado com sucesso."
@@ -61,7 +69,7 @@ namespace PegaVisaoApi.Controllers
         public async Task<IActionResult> Login(LoginDto dto)
         {
             var usuario = await _context.Usuarios
-                .FirstOrDefaultAsync(u => u.Email == dto.Email);
+                .FirstOrDefaultAsync(u => u.Email.ToLower() == dto.Email.Trim().ToLower());
 
             if (usuario == null)
             {
@@ -71,7 +79,7 @@ namespace PegaVisaoApi.Controllers
                 });
             }
 
-            var senhaValida = BCrypt.Net.BCrypt.Verify(
+            var senhaValida = !string.IsNullOrEmpty(usuario.SenhaHash) && BCrypt.Net.BCrypt.Verify(
                 dto.Senha,
                 usuario.SenhaHash
             );
@@ -100,6 +108,7 @@ namespace PegaVisaoApi.Controllers
         {
             var claims = new List<Claim>
             {
+                new Claim("versao", usuario.VersaoSessao.ToString()),
                 new Claim(
                     ClaimTypes.NameIdentifier,
                     usuario.Id.ToString()
