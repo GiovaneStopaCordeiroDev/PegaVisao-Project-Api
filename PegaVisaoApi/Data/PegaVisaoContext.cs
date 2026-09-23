@@ -12,6 +12,13 @@
 
                 protected override void OnModelCreating(ModelBuilder modelBuilder)
                 {
+                    modelBuilder.Entity<AvaliacaoProduto>(entity =>
+                    {
+                        entity.HasIndex(a => new { a.ProdutoId, a.UsuarioId }).IsUnique();
+                        entity.ToTable(t => t.HasCheckConstraint("CK_Avaliacao_Nota", "\"Nota\" BETWEEN 1 AND 5"));
+                        entity.HasOne(a => a.Produto).WithMany().HasForeignKey(a => a.ProdutoId).OnDelete(DeleteBehavior.Cascade);
+                        entity.HasOne(a => a.Usuario).WithMany().HasForeignKey(a => a.UsuarioId).OnDelete(DeleteBehavior.Cascade);
+                    });
                     modelBuilder.Entity<VariacaoProduto>()
                         .ToTable(t => t.HasCheckConstraint("CK_Variacao_Estoque",
                             "\"Estoque\" >= 0 AND \"EstoqueReservado\" >= 0 AND \"EstoqueReservado\" <= \"Estoque\""));
@@ -84,6 +91,7 @@
         public DbSet<MelhorEnvioConexao> MelhorEnvioConexoes { get; set; }
         public DbSet<CotacaoFrete> CotacoesFrete { get; set; }
         public DbSet<Produto> Produtos { get; set; }
+        public DbSet<AvaliacaoProduto> AvaliacoesProdutos { get; set; }
         public DbSet<Pedido> Pedidos  { get; set; }
         public DbSet<Categoria> Categorias { get; set; }
         public DbSet<ItemPedido> ItemPedidos { get; set; }

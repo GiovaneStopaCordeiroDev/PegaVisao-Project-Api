@@ -17,6 +17,7 @@ namespace PegaVisaoApi.Profiles
             CreateMap<Pedido, ReadPedidoDto>();
 
             CreateMap<ItemPedido, ReadItemPedidoDto>()
+                .ForMember(destino => destino.ProdutoId, opt => opt.MapFrom(origem => origem.VariacaoProduto.ProdutoId))
                 .ForMember(
                     destino => destino.NomeProduto,
                     opt => opt.MapFrom(
