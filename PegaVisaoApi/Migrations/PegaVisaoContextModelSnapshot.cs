@@ -387,6 +387,15 @@ namespace PegaVisaoApi.Migrations
                     b.Property<string>("MercadoPagoStatus")
                         .HasColumnType("text");
 
+                    b.Property<DateTime?>("MelhorEnvioEtiquetaGeradaEm")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("MelhorEnvioEtiquetaStatus")
+                        .HasColumnType("text");
+
+                    b.Property<string>("MelhorEnvioOrderId")
+                        .HasColumnType("text");
+
                     b.Property<string>("Numero")
                         .IsRequired()
                         .HasColumnType("text");
