@@ -18,7 +18,7 @@ public sealed class MelhorEnvioOAuthClient(HttpClient http, IOptions<MelhorEnvio
         return QueryHelpers.AddQueryString(_options.BaseUrl + "/oauth/authorize", new Dictionary<string, string?>
         {
             ["client_id"] = _options.ClientId, ["redirect_uri"] = _options.RedirectUri,
-            ["response_type"] = "code", ["scope"] = "shipping-calculate", ["state"] = state
+            ["response_type"] = "code", ["scope"] = "shipping-calculate cart-write shipping-checkout shipping-generate shipping-print orders-read shipping-tracking", ["state"] = state
         });
     }
 
