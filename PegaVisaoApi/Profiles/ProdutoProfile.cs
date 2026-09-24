@@ -8,8 +8,18 @@ namespace PegaVisaoApi.AutoMapper
     {
         public ProdutoProfile()
         {
-            CreateMap<CreateProdutoDto, Produto>();
-            CreateMap<UpdateProdutoDto, Produto>();
+            CreateMap<CreateProdutoDto, Produto>()
+                .ForMember(
+                    destino => destino.Variacoes,
+                    opcao => opcao.Ignore()
+                );
+
+            CreateMap<UpdateProdutoDto, Produto>()
+                .ForMember(
+                    destino => destino.Variacoes,
+                    opcao => opcao.Ignore()
+                );
+
             CreateMap<Produto, ReadProdutoDto>();
         }
     }

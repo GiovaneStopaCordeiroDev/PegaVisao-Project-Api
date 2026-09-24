@@ -1,6 +1,7 @@
 ﻿using AutoMapper;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authorization;
 using PegaVisaoApi.Data;
 using PegaVisaoApi.DTO_s;
 using PegaVisaoApi.Models;
@@ -22,6 +23,7 @@ namespace PegaVisaoApi.Controllers
         }
 
         [HttpPost]
+        [Authorize(Roles = "Admin")]
         public IActionResult CriarCategoria(CreateCategoriaDto dto)
         {
             Categoria Categoria = _mapper.Map<Categoria>(dto);
@@ -52,6 +54,7 @@ namespace PegaVisaoApi.Controllers
         }
 
         [HttpPut("{id}")]
+        [Authorize(Roles = "Admin")]
         public IActionResult AtualizaCategoria(int id, UpdateCategoriaDto dto)
         {
             var categoria = _context.Categorias.FirstOrDefault(c => c.Id == id);
@@ -63,6 +66,7 @@ namespace PegaVisaoApi.Controllers
 
 
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin")]
         public IActionResult DeletarCategoria(int id)
         {
             var categoria = _context.Categorias.FirstOrDefault(c => c.Id == id);

@@ -84,7 +84,7 @@ namespace PegaVisaoApi.Controllers
                 Cidade = dto.Cidade,
                 Estado = dto.Estado,
 
-                FormaPagamento = dto.FormaPagamento,
+                FormaPagamento = formaPagamento,
 
                 Itens = new List<ItemPedido>()
             };
@@ -125,10 +125,7 @@ namespace PegaVisaoApi.Controllers
                 // ==========================================
                 // PIX
                 // ==========================================
-
-                if (dto.FormaPagamento.Equals(
-                    "Pix",
-                    StringComparison.OrdinalIgnoreCase))
+                if (pedidoComItens.FormaPagamento == "Pix")
                 {
                     var pix =
                         await _mercadoPagoService.CriarPixAsync(
