@@ -38,6 +38,9 @@ namespace PegaVisaoApi.Models
         public bool? FreteSandbox { get; set; }
         public Guid? FreteCotacaoId { get; set; }
         public string? FreteVolumesJson { get; set; }
+        public string? MelhorEnvioOrderId { get; set; }
+        public string? MelhorEnvioEtiquetaStatus { get; set; }
+        public DateTime? MelhorEnvioEtiquetaGeradaEm { get; set; }
         [System.ComponentModel.DataAnnotations.Schema.NotMapped]
         public decimal SubtotalProdutos => ValorTotal - ValorFrete + ValorDesconto;
 
