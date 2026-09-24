@@ -4,6 +4,8 @@ namespace PegaVisaoApi.DTO_s
 {
     public class CreatePedidoDto
     {
+        public Guid? CheckoutSessionId { get; set; }
+        [StringLength(40)] public string? CupomCodigo { get; set; }
         [Required(ErrorMessage = "O campo Itens é obrigatório.")]
         public List<CreateItemPedidoDto> Itens { get; set; }
 

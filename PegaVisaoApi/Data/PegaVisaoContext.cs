@@ -12,6 +12,15 @@
 
                 protected override void OnModelCreating(ModelBuilder modelBuilder)
                 {
+                    modelBuilder.Entity<Cupom>().HasIndex(c => c.Codigo).IsUnique();
+                    modelBuilder.Entity<Cupom>().ToTable(t => t.HasCheckConstraint("CK_Cupom_Valores",
+                        "\"Valor\" > 0 AND \"ValorMinimo\" >= 0 AND (\"Tipo\" = 'Fixo' OR (\"Tipo\" = 'Percentual' AND \"Valor\" <= 100))"));
+                    modelBuilder.Entity<Pedido>().HasIndex(p => p.CheckoutSessionId).IsUnique();
+                    modelBuilder.Entity<Pedido>().HasIndex(p => p.PaymentIdempotencyKey).IsUnique();
+                    modelBuilder.Entity<Pedido>().HasOne(p => p.Cupom).WithMany().HasForeignKey(p => p.CupomId).OnDelete(DeleteBehavior.Restrict);
+                    modelBuilder.Entity<Pedido>().Property(p => p.CheckoutHash).HasMaxLength(64);
+                    modelBuilder.Entity<Pedido>().Property(p => p.PaymentIdempotencyKey).HasMaxLength(100);
+                    modelBuilder.Entity<TentativaPagamento>().HasOne(t => t.Pedido).WithMany().HasForeignKey(t => t.PedidoId);
                     modelBuilder.Entity<AvaliacaoProduto>(entity =>
                     {
                         entity.HasIndex(a => new { a.ProdutoId, a.UsuarioId }).IsUnique();
@@ -91,6 +100,8 @@
         public DbSet<MelhorEnvioConexao> MelhorEnvioConexoes { get; set; }
         public DbSet<CotacaoFrete> CotacoesFrete { get; set; }
         public DbSet<Produto> Produtos { get; set; }
+        public DbSet<Cupom> Cupons { get; set; }
+        public DbSet<TentativaPagamento> TentativasPagamento { get; set; }
         public DbSet<AvaliacaoProduto> AvaliacoesProdutos { get; set; }
         public DbSet<Pedido> Pedidos  { get; set; }
         public DbSet<Categoria> Categorias { get; set; }

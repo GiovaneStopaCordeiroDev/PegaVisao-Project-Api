@@ -86,7 +86,17 @@ public sealed class FreteService(PegaVisaoContext db, MelhorEnvioService conexao
 
         // Reserva a cotação e cria o pedido na mesma transação. Clique/requisição duplicados
         // não criam duas cobranças com a mesma cotação. Nenhuma chamada externa sob esse bloqueio.
-        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        await using var tx = db.Database.CurrentTransaction == null ? await db.Database.BeginTransactionAsync(ct) : null;
+        if (!string.IsNullOrWhiteSpace(pedido.CupomCodigo))
+        {
+            var (cupom, desconto) = await new CupomService(db).ValidarAsync(pedido.CupomCodigo,
+                carrinho.Sum(i => i.Preco * i.Quantidade), pedido.UsuarioId, true, ct);
+            pedido.CupomId = cupom.Id;
+            pedido.CupomCodigo = cupom.Codigo;
+            pedido.ValorDesconto = desconto;
+            pedido.ValorTotal -= desconto;
+        }
+        if (pedido.ValorTotal <= 0) throw new FreteException(422, "O total após o desconto precisa ser maior que zero para pagamento.");
         var consumidas = await db.CotacoesFrete.Where(c => c.Id == cotacao.Id &&
             c.UsuarioId == pedido.UsuarioId && c.ConsumidaEm == null && c.ExpiraEm > DateTime.UtcNow)
             .ExecuteUpdateAsync(update => update.SetProperty(c => c.ConsumidaEm, DateTime.UtcNow), ct);
@@ -94,12 +104,12 @@ public sealed class FreteService(PegaVisaoContext db, MelhorEnvioService conexao
         await new EstoqueService(db).ReservarAsync(pedido, ct);
         db.Pedidos.Add(pedido);
         await db.SaveChangesAsync(ct);
-        await tx.CommitAsync(ct);
+        if (tx != null) await tx.CommitAsync(ct);
         logger.LogInformation("Frete vinculado ao pedido {PedidoId}: cotação {CotacaoId}, serviço {ServicoId}, valor {ValorFrete}, total {Total}",
             pedido.Id, cotacao.Id, servicoId, pedido.ValorFrete, pedido.ValorTotal);
     }
 
-    private async Task<List<FreteItem>> PrepararCarrinhoAsync(List<CreateItemPedidoDto> itens, bool semFrete, CancellationToken ct)
+    public async Task<List<FreteItem>> PrepararCarrinhoAsync(List<CreateItemPedidoDto> itens, bool semFrete, CancellationToken ct)
     {
         var quantidades = FreteRegras.AgruparItens(itens);
         var ids = quantidades.Keys.ToArray();

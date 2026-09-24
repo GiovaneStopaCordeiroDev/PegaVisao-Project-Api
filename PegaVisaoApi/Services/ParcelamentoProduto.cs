@@ -17,14 +17,21 @@ public static class ParcelamentoProduto
     public static object ConfigurarCheckout(decimal total)
     {
         var quantidade = Calcular(total).Quantidade;
-        if (quantidade < 2) return new { max_installments = 1 };
+
+        if (quantidade < 2)
+            return new { max_installments = 1 };
+
         return new
         {
             max_installments = quantidade,
-            installments_cost = "seller",
+
             installments = new
             {
-                interest_free = new { type = "range", values = new[] { 2, quantidade } }
+                interest_free = new
+                {
+                    type = "range",
+                    values = new[] { 2, quantidade }
+                }
             }
         };
     }

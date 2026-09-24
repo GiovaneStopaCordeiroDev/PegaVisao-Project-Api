@@ -3,6 +3,9 @@ namespace PegaVisaoApi.DTO_s
     public class ReadPedidoDto
     {
         public int Id { get; set; }
+        public Guid? CheckoutSessionId { get; set; }
+        public string? CupomCodigo { get; set; }
+        public decimal ValorDesconto { get; set; }
 
         public DateTime? PagamentoExpiraEm { get; set; }
         public DateTime ServidorAgora => DateTime.UtcNow;

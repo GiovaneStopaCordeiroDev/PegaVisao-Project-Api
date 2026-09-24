@@ -12,6 +12,15 @@ namespace PegaVisaoApi.Models
     public class Pedido
     {
         public int Id { get; set; }
+        public Guid? CheckoutSessionId { get; set; }
+        public string? CheckoutHash { get; set; }
+        public string? PaymentIdempotencyKey { get; set; }
+        public string? PagamentoPayloadJson { get; set; }
+        public DateTime? PagamentoLeaseAte { get; set; }
+        public int? CupomId { get; set; }
+        public virtual Cupom? Cupom { get; set; }
+        public string? CupomCodigo { get; set; }
+        public decimal ValorDesconto { get; set; }
         public bool ExcluidoPeloCliente { get; set; }
         public EstadoEstoquePedido EstadoEstoque { get; set; }
         public DateTime? ProximaConsultaEstoqueEm { get; set; }
@@ -30,7 +39,7 @@ namespace PegaVisaoApi.Models
         public Guid? FreteCotacaoId { get; set; }
         public string? FreteVolumesJson { get; set; }
         [System.ComponentModel.DataAnnotations.Schema.NotMapped]
-        public decimal SubtotalProdutos => ValorTotal - ValorFrete;
+        public decimal SubtotalProdutos => ValorTotal - ValorFrete + ValorDesconto;
 
         public Status Status { get; set; } = Status.Pendente;
 

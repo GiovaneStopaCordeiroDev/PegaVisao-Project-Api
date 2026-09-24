@@ -97,7 +97,7 @@ await service.CriarOrderAsync(new Pedido { Id = 23, ValorTotal = 50,
     Itens = new List<ItemPedido> { new() { Quantidade = 1, PrecoUnitario = 50,
         VariacaoProduto = new() { Produto = new() { Nome = "Teste" } } } } });
 using (var body = JsonDocument.Parse(handler.Body!))
-    Check(body.RootElement.GetProperty("expiration_time").GetString() == "PT15M", "Checkout Pro recebe validade de 15 minutos");
+    Check(body.RootElement.GetProperty("expiration_time").GetString() == "PT15M", "Checkout Pzro recebe validade de 15 minutos");
 Check(ParcelamentoProduto.Calcular(120).Quantidade == 12 && ParcelamentoProduto.Calcular(120).ValorParcela == 10,
     "Produto de 120 anuncia 12 parcelas de 10");
 Check(ParcelamentoProduto.Calcular(25).Quantidade == 5, "Quantidade respeita mínimo da loja de 5 reais");
@@ -106,10 +106,19 @@ Check(ParcelamentoProduto.Calcular(199.90m).ValorParcela == 16.66m, "Simulação
 using (var body = JsonDocument.Parse(handler.Body!))
 {
     var pagamento = body.RootElement.GetProperty("config").GetProperty("payment_method");
-    Check(pagamento.GetProperty("max_installments").GetInt32() == 10, "Checkout usa total de 50 para máximo de parcelas");
-    Check(pagamento.GetProperty("installments_cost").GetString() == "seller"
-        && pagamento.GetProperty("installments").GetProperty("interest_free").GetProperty("values")[1].GetInt32() == 10,
-        "Checkout alinha parcelas sem juros à simulação");
+    Check(
+    !pagamento.TryGetProperty("installments_cost", out _),
+    "Checkout não envia installments_cost"
+        );
+
+        Check(
+            pagamento
+                .GetProperty("installments")
+                .GetProperty("interest_free")
+                .GetProperty("values")[1]
+                .GetInt32() == 10,
+            "Checkout mantém parcelas sem juros"
+        );
 }
 Console.WriteLine($"{checks} verificações passaram; HTTP simulado, sem acesso ao banco ou Mercado Pago.");
 
