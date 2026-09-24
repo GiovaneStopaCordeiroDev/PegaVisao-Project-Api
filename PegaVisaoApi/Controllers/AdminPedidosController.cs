@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PegaVisaoApi.Data;
 using PegaVisaoApi.Models;
+using PegaVisaoApi.Services.MelhorEnvio;
 
 namespace PegaVisaoApi.Controllers;
 
@@ -10,7 +11,7 @@ namespace PegaVisaoApi.Controllers;
 [Route("api/admin/pedidos")]
 [Authorize(Roles = "Admin")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-public sealed class AdminPedidosController(PegaVisaoContext db) : ControllerBase
+public sealed class AdminPedidosController(PegaVisaoContext db, MelhorEnvioEtiquetaService etiquetaService) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> Listar(string filtro = "todos", int pagina = 1,
@@ -37,7 +38,8 @@ public sealed class AdminPedidosController(PegaVisaoContext db) : ControllerBase
                 p.FormaPagamento, p.ValorTotal, p.ValorFrete,
                 SubtotalProdutos = p.ValorTotal - p.ValorFrete,
                 p.FreteServico, p.FreteTransportadora, p.FretePrazoDias, p.FreteServicoId,
-                p.PagamentoExpiraEm,
+                p.PagamentoExpiraEm, p.MelhorEnvioOrderId, p.MelhorEnvioEtiquetaStatus,
+                p.MelhorEnvioEtiquetaGeradaEm,
                 Endereco = new { p.Cep, p.Rua, p.Numero, p.Complemento, p.Bairro, p.Cidade, p.Estado },
                 Itens = p.Itens.OrderBy(i => i.Id).Select(i => new {
                     i.Id, Nome = i.VariacaoProduto.Produto.Nome,
@@ -48,5 +50,31 @@ public sealed class AdminPedidosController(PegaVisaoContext db) : ControllerBase
             }).ToListAsync(ct);
         return Ok(new { pedidos, total, pagina, tamanhoPagina,
             totalPaginas = (int)Math.Ceiling(total / (double)tamanhoPagina) });
+    }
+
+    [HttpPost("{id:int}/etiqueta")]
+    public async Task<IActionResult> GerarEtiqueta(int id, GerarEtiquetaAdminRequest request, CancellationToken ct)
+    {
+        try
+        {
+            return Ok(await etiquetaService.GerarAsync(id, request, ct));
+        }
+        catch (MelhorEnvioException ex)
+        {
+            return StatusCode(ex.HttpStatus, new { mensagem = ex.Message });
+        }
+    }
+
+    [HttpGet("{id:int}/etiqueta/impressao")]
+    public async Task<IActionResult> ImprimirEtiqueta(int id, CancellationToken ct)
+    {
+        try
+        {
+            return Ok(new { url = await etiquetaService.ObterLinkImpressaoAsync(id, ct) });
+        }
+        catch (MelhorEnvioException ex)
+        {
+            return StatusCode(ex.HttpStatus, new { mensagem = ex.Message });
+        }
     }
 }
