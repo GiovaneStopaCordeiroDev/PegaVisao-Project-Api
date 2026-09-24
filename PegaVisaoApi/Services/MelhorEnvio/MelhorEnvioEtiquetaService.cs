@@ -38,25 +38,25 @@ public sealed class MelhorEnvioEtiquetaService(
         if (pedido.FreteServicoId is null or <= 0 || pedido.FreteServicoId == int.MaxValue)
             throw new MelhorEnvioException(409, "Este pedido não possui um frete válido para geração de etiqueta.");
 
-        var documento = Digitos(dados.Documento);
-        var telefone = Digitos(dados.Telefone);
-        var nfe = Digitos(dados.ChaveNfe);
-
-        if (documento.Length != 11)
-            throw new MelhorEnvioException(400, "Informe o CPF do destinatário com 11 dígitos.");
-        if (telefone.Length is < 10 or > 11)
-            throw new MelhorEnvioException(400, "Informe um telefone válido do destinatário.");
-        if (nfe.Length != 0 && nfe.Length != 44)
-            throw new MelhorEnvioException(400, "A chave da NF-e deve possuir 44 dígitos.");
-
-        if (nfe.Length == 0 && !_options.PermitirDeclaracaoConteudo)
-            throw new MelhorEnvioException(422,
-                "Informe a chave da NF-e. Se a loja puder usar Declaração de Conteúdo neste envio, habilite MelhorEnvio__PermitirDeclaracaoConteudo=true.");
-
         var token = await conexao.ObterAccessTokenAsync(ct);
 
         if (string.IsNullOrWhiteSpace(pedido.MelhorEnvioOrderId))
         {
+            var documento = Digitos(dados.Documento);
+            var telefone = Digitos(dados.Telefone);
+            var nfe = Digitos(dados.ChaveNfe);
+
+            if (documento.Length != 11)
+                throw new MelhorEnvioException(400, "Informe o CPF do destinatário com 11 dígitos.");
+            if (telefone.Length is < 10 or > 11)
+                throw new MelhorEnvioException(400, "Informe um telefone válido do destinatário.");
+            if (nfe.Length != 0 && nfe.Length != 44)
+                throw new MelhorEnvioException(400, "A chave da NF-e deve possuir 44 dígitos.");
+
+            if (nfe.Length == 0 && !_options.PermitirDeclaracaoConteudo)
+                throw new MelhorEnvioException(422,
+                    "Informe a chave da NF-e. Se a loja puder usar Declaração de Conteúdo neste envio, habilite MelhorEnvio__PermitirDeclaracaoConteudo=true.");
+
             var volumes = LerVolumes(pedido);
             if (pedido.FreteServicoId is 1 or 2 or 17 && volumes.Count > 1)
                 throw new MelhorEnvioException(422,
