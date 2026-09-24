@@ -84,6 +84,43 @@ public sealed class EstoqueService(PegaVisaoContext db)
         await tx.CommitAsync(ct);
     }
 
+    public async Task CancelarSemPagamentoAsync(
+    int pedidoId,
+    CancellationToken ct = default)
+    {
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+
+        var pedido = await db.Pedidos
+            .FromSqlInterpolated(
+                $"SELECT * FROM \"Pedidos\" WHERE \"Id\" = {pedidoId} FOR UPDATE")
+            .SingleOrDefaultAsync(ct);
+
+        if (pedido == null)
+            throw new InvalidOperationException("Pedido não encontrado.");
+
+        if (pedido.Status != Status.Pendente)
+        {
+            await tx.CommitAsync(ct);
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(pedido.MercadoPagoOrderId))
+            throw new InvalidOperationException(
+                "O pedido possui uma Order do Mercado Pago.");
+
+        // Devolve o estoque reservado
+        await FinalizarAsync(pedido, false, ct);
+
+        pedido.Status = Status.Cancelado;
+        pedido.MercadoPagoStatus = "payment_not_created";
+        pedido.ProximaConsultaEstoqueEm = null;
+
+        await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
+    }
+
+
+
     private void ExigirTransacao()
     {
         if (db.Database.CurrentTransaction == null)

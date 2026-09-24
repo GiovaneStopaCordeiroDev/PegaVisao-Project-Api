@@ -459,7 +459,30 @@ namespace PegaVisaoApi.Controllers
             }
 
             if (pedido.MercadoPagoOrderId == null)
-                return Conflict(new { mensagem = "Pagamento sem identificação confirmada. A reserva será mantida até a conciliação." });
+            {
+                try
+                {
+                    await new EstoqueService(_context)
+                        .CancelarSemPagamentoAsync(
+                            pedido.Id,
+                            HttpContext.RequestAborted
+                        );
+
+                    return Ok(new
+                    {
+                        mensagem = "Pedido cancelado com sucesso.",
+                        pedidoId = pedido.Id,
+                        status = Status.Cancelado.ToString()
+                    });
+                }
+                catch (Exception)
+                {
+                    return StatusCode(500, new
+                    {
+                        mensagem = "Não foi possível cancelar o pedido."
+                    });
+                }
+            }
             try
             {
                 try { await _mercadoPagoService.CancelarOrderAsync(pedido.MercadoPagoOrderId); }
