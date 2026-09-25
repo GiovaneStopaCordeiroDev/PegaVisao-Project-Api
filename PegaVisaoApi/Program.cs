@@ -130,6 +130,10 @@ builder.Services.AddHttpClient<MelhorEnvioOAuthClient>(client =>
     client.Timeout = TimeSpan.FromSeconds(15);
 }).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
 builder.Services.AddScoped<MelhorEnvioService>();
+builder.Services.AddHttpClient<MelhorEnvioEtiquetaService>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(30);
+}).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
 builder.Services.AddHostedService<MelhorEnvioRenovacaoWorker>();
 builder.Services.AddHttpClient<MelhorEnvioFreteClient>(client =>
 {
