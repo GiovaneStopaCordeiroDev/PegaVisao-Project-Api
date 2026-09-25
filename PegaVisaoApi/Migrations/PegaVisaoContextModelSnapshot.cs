@@ -334,6 +334,9 @@ namespace PegaVisaoApi.Migrations
                     b.Property<string>("CupomCodigo")
                         .HasColumnType("text");
 
+                    b.Property<string>("CpfDestinatario")
+                        .HasColumnType("text");
+
                     b.Property<int?>("CupomId")
                         .HasColumnType("integer");
 
@@ -428,6 +431,9 @@ namespace PegaVisaoApi.Migrations
 
                     b.Property<int>("Status")
                         .HasColumnType("integer");
+
+                    b.Property<string>("TelefoneDestinatario")
+                        .HasColumnType("text");
 
                     b.Property<int>("UsuarioId")
                         .HasColumnType("integer");
