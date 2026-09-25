@@ -66,6 +66,10 @@ namespace PegaVisaoApi.Models
 
         public string Estado { get; set; }
 
+        // Snapshot dos dados usados para a entrega. Nullable para pedidos antigos.
+        public string? CpfDestinatario { get; set; }
+        public string? TelefoneDestinatario { get; set; }
+
         public string FormaPagamento { get; set; }
 
         public string? MercadoPagoOrderId { get; set; }
