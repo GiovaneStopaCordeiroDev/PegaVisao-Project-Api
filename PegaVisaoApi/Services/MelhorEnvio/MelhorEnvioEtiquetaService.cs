@@ -48,8 +48,8 @@ public sealed class MelhorEnvioEtiquetaService(
             var telefone = Digitos(pedido.TelefoneDestinatario ?? dados.Telefone);
             var nfe = Digitos(dados.ChaveNfe);
 
-            if (documento.Length != 11)
-                throw new MelhorEnvioException(400, "Informe o CPF do destinatário com 11 dígitos.");
+            if (!FreteRegras.CpfValido(documento))
+                throw new MelhorEnvioException(400, "Informe um CPF válido para o destinatário.");
             if (telefone.Length is < 10 or > 11)
                 throw new MelhorEnvioException(400, "Informe um telefone válido do destinatário.");
             if (nfe.Length != 0 && nfe.Length != 44)
