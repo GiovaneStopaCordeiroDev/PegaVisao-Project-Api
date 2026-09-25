@@ -114,8 +114,8 @@ namespace PegaVisaoApi.Controllers
 
             // Mantém compatibilidade com versões antigas do frontend durante o rollout.
             // Quando enviados, os dados precisam estar válidos.
-            if (cpfDestinatario.Length > 0 && cpfDestinatario.Length != 11)
-                return BadRequest(new { mensagem = "Informe um CPF válido com 11 dígitos." });
+            if (cpfDestinatario.Length > 0 && !FreteRegras.CpfValido(cpfDestinatario))
+                return BadRequest(new { mensagem = "Informe um CPF válido." });
 
             if (telefoneDestinatario.Length > 0 &&
                 telefoneDestinatario.Length is not (10 or 11))
