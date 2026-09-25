@@ -9,7 +9,7 @@ using PegaVisaoApi.Services.Frete;
 
 namespace PegaVisaoApi.Services.MelhorEnvio;
 
-public sealed record GerarEtiquetaAdminRequest(string Documento, string Telefone, string? ChaveNfe);
+public sealed record GerarEtiquetaAdminRequest(string? Documento, string? Telefone, string? ChaveNfe);
 
 public sealed class MelhorEnvioEtiquetaService(
     PegaVisaoContext db,
@@ -42,12 +42,14 @@ public sealed class MelhorEnvioEtiquetaService(
 
         if (string.IsNullOrWhiteSpace(pedido.MelhorEnvioOrderId))
         {
-            var documento = Digitos(dados.Documento);
-            var telefone = Digitos(dados.Telefone);
+            // Pedidos novos já trazem CPF/telefone do checkout.
+            // Pedidos antigos continuam aceitando preenchimento manual pelo admin.
+            var documento = Digitos(pedido.CpfDestinatario ?? dados.Documento);
+            var telefone = Digitos(pedido.TelefoneDestinatario ?? dados.Telefone);
             var nfe = Digitos(dados.ChaveNfe);
 
-            if (documento.Length != 11)
-                throw new MelhorEnvioException(400, "Informe o CPF do destinatário com 11 dígitos.");
+            if (!FreteRegras.CpfValido(documento))
+                throw new MelhorEnvioException(400, "Informe um CPF válido para o destinatário.");
             if (telefone.Length is < 10 or > 11)
                 throw new MelhorEnvioException(400, "Informe um telefone válido do destinatário.");
             if (nfe.Length != 0 && nfe.Length != 44)

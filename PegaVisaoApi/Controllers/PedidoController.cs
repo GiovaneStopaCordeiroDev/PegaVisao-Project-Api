@@ -103,6 +103,25 @@ namespace PegaVisaoApi.Controllers
             }
 
             // ==========================================
+            // DADOS DO DESTINATÁRIO
+            // ==========================================
+
+            static string SomenteDigitos(string? valor) =>
+                new((valor ?? "").Where(char.IsDigit).ToArray());
+
+            var cpfDestinatario = SomenteDigitos(dto.CpfDestinatario);
+            var telefoneDestinatario = SomenteDigitos(dto.TelefoneDestinatario);
+
+            // Mantém compatibilidade com versões antigas do frontend durante o rollout.
+            // Quando enviados, os dados precisam estar válidos.
+            if (cpfDestinatario.Length > 0 && !FreteRegras.CpfValido(cpfDestinatario))
+                return BadRequest(new { mensagem = "Informe um CPF válido." });
+
+            if (telefoneDestinatario.Length > 0 &&
+                telefoneDestinatario.Length is not (10 or 11))
+                return BadRequest(new { mensagem = "Informe um telefone válido com DDD." });
+
+            // ==========================================
             // CRIA PEDIDO
             // ==========================================
 
@@ -118,6 +137,8 @@ namespace PegaVisaoApi.Controllers
                 Bairro = dto.Bairro,
                 Cidade = dto.Cidade,
                 Estado = dto.Estado,
+                CpfDestinatario = cpfDestinatario.Length == 0 ? null : cpfDestinatario,
+                TelefoneDestinatario = telefoneDestinatario.Length == 0 ? null : telefoneDestinatario,
 
                 FormaPagamento = formaPagamento,
 

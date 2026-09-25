@@ -34,6 +34,11 @@ namespace PegaVisaoApi.DTO_s
         [Required(ErrorMessage = "O estado é obrigatório.")]
         public string Estado { get; set; }
 
+        // O frontend novo sempre envia estes campos. Permanecem opcionais no contrato
+        // durante a transição para não quebrar clientes antigos já publicados.
+        public string? CpfDestinatario { get; set; }
+        public string? TelefoneDestinatario { get; set; }
+
         [Required(ErrorMessage = "A forma de pagamento é obrigatória.")]
         public string FormaPagamento { get; set; }
     }

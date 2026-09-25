@@ -40,6 +40,8 @@ public sealed class AdminPedidosController(PegaVisaoContext db, MelhorEnvioEtiqu
                 p.FreteServico, p.FreteTransportadora, p.FretePrazoDias, p.FreteServicoId,
                 p.PagamentoExpiraEm, p.MelhorEnvioOrderId, p.MelhorEnvioEtiquetaStatus,
                 p.MelhorEnvioEtiquetaGeradaEm,
+                TemCpfDestinatario = p.CpfDestinatario != null,
+                TemTelefoneDestinatario = p.TelefoneDestinatario != null,
                 Endereco = new { p.Cep, p.Rua, p.Numero, p.Complemento, p.Bairro, p.Cidade, p.Estado },
                 Itens = p.Itens.OrderBy(i => i.Id).Select(i => new {
                     i.Id, Nome = i.VariacaoProduto.Produto.Nome,
