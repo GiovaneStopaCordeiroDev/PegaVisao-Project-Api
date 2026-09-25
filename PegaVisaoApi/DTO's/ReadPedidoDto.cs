@@ -21,6 +21,11 @@ namespace PegaVisaoApi.DTO_s
         public bool? FreteSandbox { get; set; }
         public Guid? FreteCotacaoId { get; set; }
         public decimal SubtotalProdutos { get; set; }
+        public string? MelhorEnvioTracking { get; set; }
+        public string? MelhorEnvioTrackingUrl { get; set; }
+        public string? MelhorEnvioRastreioStatus { get; set; }
+        public DateTime? MelhorEnvioRastreioAtualizadoEm { get; set; }
+        public string? MelhorEnvioEtiquetaStatus { get; set; }
 
         public string Status { get; set; }
 

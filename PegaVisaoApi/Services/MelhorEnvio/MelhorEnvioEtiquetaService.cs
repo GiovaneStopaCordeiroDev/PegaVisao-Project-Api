@@ -102,6 +102,105 @@ public sealed class MelhorEnvioEtiquetaService(
         };
     }
 
+    public async Task<object> AtualizarRastreioAsync(int pedidoId, CancellationToken ct)
+    {
+        _options.Validar();
+
+        var pedido = await db.Pedidos
+            .SingleOrDefaultAsync(p => p.Id == pedidoId, ct)
+            ?? throw new MelhorEnvioException(404, "Pedido não encontrado.");
+
+        if (string.IsNullOrWhiteSpace(pedido.MelhorEnvioOrderId))
+            throw new MelhorEnvioException(409, "Este pedido ainda não possui uma etiqueta do Melhor Envio.");
+
+        var token = await conexao.ObterAccessTokenAsync(ct);
+        var json = await EnviarJsonAsync(HttpMethod.Post, "/api/v2/me/shipment/tracking", token,
+            new { orders = new[] { pedido.MelhorEnvioOrderId } }, ct);
+
+        AplicarRastreio(pedido, json);
+        pedido.MelhorEnvioRastreioAtualizadoEm = DateTime.UtcNow;
+        await db.SaveChangesAsync(ct);
+
+        return DadosRastreio(pedido);
+    }
+
+    public static void AplicarWebhook(Pedido pedido, string? status, string? tracking, string? trackingUrl)
+    {
+        if (!string.IsNullOrWhiteSpace(status))
+            pedido.MelhorEnvioRastreioStatus = status.Trim().ToLowerInvariant();
+
+        if (!string.IsNullOrWhiteSpace(tracking))
+            pedido.MelhorEnvioTracking = tracking.Trim();
+
+        if (Uri.TryCreate(trackingUrl, UriKind.Absolute, out var uri) &&
+            uri.Scheme is "https" or "http")
+            pedido.MelhorEnvioTrackingUrl = uri.AbsoluteUri;
+
+        pedido.MelhorEnvioRastreioAtualizadoEm = DateTime.UtcNow;
+        AtualizarStatusPedido(pedido, pedido.MelhorEnvioRastreioStatus);
+    }
+
+    private static void AplicarRastreio(Pedido pedido, JsonElement json)
+    {
+        var tracking = EncontrarString(json, "tracking");
+        var status = EncontrarString(json, "status");
+        var trackingUrl = EncontrarString(json, "tracking_url");
+
+        AplicarWebhook(pedido, status, tracking, trackingUrl);
+    }
+
+    private static object DadosRastreio(Pedido pedido) => new
+    {
+        pedido.Id,
+        pedido.MelhorEnvioTracking,
+        pedido.MelhorEnvioTrackingUrl,
+        pedido.MelhorEnvioRastreioStatus,
+        pedido.MelhorEnvioRastreioAtualizadoEm,
+        statusPedido = pedido.Status.ToString()
+    };
+
+    private static string? EncontrarString(JsonElement elemento, string nome)
+    {
+        if (elemento.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var propriedade in elemento.EnumerateObject())
+            {
+                if (string.Equals(propriedade.Name, nome, StringComparison.OrdinalIgnoreCase) &&
+                    propriedade.Value.ValueKind == JsonValueKind.String)
+                    return propriedade.Value.GetString();
+
+                var encontrada = EncontrarString(propriedade.Value, nome);
+                if (!string.IsNullOrWhiteSpace(encontrada)) return encontrada;
+            }
+        }
+        else if (elemento.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in elemento.EnumerateArray())
+            {
+                var encontrada = EncontrarString(item, nome);
+                if (!string.IsNullOrWhiteSpace(encontrada)) return encontrada;
+            }
+        }
+
+        return null;
+    }
+
+    private static void AtualizarStatusPedido(Pedido pedido, string? status)
+    {
+        switch (status?.Trim().ToLowerInvariant())
+        {
+            case "posted":
+            case "received":
+                if (pedido.Status == Status.Pago)
+                    pedido.Status = Status.Enviado;
+                break;
+            case "delivered":
+                if (pedido.Status is Status.Pago or Status.Enviado)
+                    pedido.Status = Status.Entregue;
+                break;
+        }
+    }
+
     public async Task<string> ObterLinkImpressaoAsync(int pedidoId, CancellationToken ct)
     {
         _options.Validar();

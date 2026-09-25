@@ -399,6 +399,18 @@ namespace PegaVisaoApi.Migrations
                     b.Property<string>("MelhorEnvioOrderId")
                         .HasColumnType("text");
 
+                    b.Property<DateTime?>("MelhorEnvioRastreioAtualizadoEm")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("MelhorEnvioRastreioStatus")
+                        .HasColumnType("text");
+
+                    b.Property<string>("MelhorEnvioTracking")
+                        .HasColumnType("text");
+
+                    b.Property<string>("MelhorEnvioTrackingUrl")
+                        .HasColumnType("text");
+
                     b.Property<string>("Numero")
                         .IsRequired()
                         .HasColumnType("text");
@@ -456,6 +468,8 @@ namespace PegaVisaoApi.Migrations
 
                     b.HasIndex("FreteCotacaoId")
                         .IsUnique();
+
+                    b.HasIndex("MelhorEnvioOrderId");
 
                     b.HasIndex("PaymentIdempotencyKey")
                         .IsUnique();

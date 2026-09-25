@@ -40,6 +40,8 @@ public sealed class AdminPedidosController(PegaVisaoContext db, MelhorEnvioEtiqu
                 p.FreteServico, p.FreteTransportadora, p.FretePrazoDias, p.FreteServicoId,
                 p.PagamentoExpiraEm, p.MelhorEnvioOrderId, p.MelhorEnvioEtiquetaStatus,
                 p.MelhorEnvioEtiquetaGeradaEm,
+                p.MelhorEnvioTracking, p.MelhorEnvioTrackingUrl,
+                p.MelhorEnvioRastreioStatus, p.MelhorEnvioRastreioAtualizadoEm,
                 TemCpfDestinatario = p.CpfDestinatario != null,
                 TemTelefoneDestinatario = p.TelefoneDestinatario != null,
                 Endereco = new { p.Cep, p.Rua, p.Numero, p.Complemento, p.Bairro, p.Cidade, p.Estado },
@@ -60,6 +62,19 @@ public sealed class AdminPedidosController(PegaVisaoContext db, MelhorEnvioEtiqu
         try
         {
             return Ok(await etiquetaService.GerarAsync(id, request, ct));
+        }
+        catch (MelhorEnvioException ex)
+        {
+            return StatusCode(ex.HttpStatus, new { mensagem = ex.Message });
+        }
+    }
+
+    [HttpPost("{id:int}/rastreio/atualizar")]
+    public async Task<IActionResult> AtualizarRastreio(int id, CancellationToken ct)
+    {
+        try
+        {
+            return Ok(await etiquetaService.AtualizarRastreioAsync(id, ct));
         }
         catch (MelhorEnvioException ex)
         {

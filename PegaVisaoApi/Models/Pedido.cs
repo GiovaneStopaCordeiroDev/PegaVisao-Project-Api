@@ -41,6 +41,10 @@ namespace PegaVisaoApi.Models
         public string? MelhorEnvioOrderId { get; set; }
         public string? MelhorEnvioEtiquetaStatus { get; set; }
         public DateTime? MelhorEnvioEtiquetaGeradaEm { get; set; }
+        public string? MelhorEnvioTracking { get; set; }
+        public string? MelhorEnvioTrackingUrl { get; set; }
+        public string? MelhorEnvioRastreioStatus { get; set; }
+        public DateTime? MelhorEnvioRastreioAtualizadoEm { get; set; }
         [System.ComponentModel.DataAnnotations.Schema.NotMapped]
         public decimal SubtotalProdutos => ValorTotal - ValorFrete + ValorDesconto;
 
