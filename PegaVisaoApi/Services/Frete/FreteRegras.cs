@@ -19,6 +19,24 @@ public record FreteOpcao(int ServicoId, string Servico, string Transportadora, d
 
 public static class FreteRegras
 {
+    public static bool CpfValido(string? cpf)
+    {
+        var numeros = new string((cpf ?? "").Where(char.IsDigit).ToArray());
+        if (numeros.Length != 11 || numeros.Distinct().Count() == 1) return false;
+
+        static int Digito(string valor, int tamanho)
+        {
+            var soma = 0;
+            for (var i = 0; i < tamanho; i++)
+                soma += (valor[i] - '0') * (tamanho + 1 - i);
+            var resto = soma % 11;
+            return resto < 2 ? 0 : 11 - resto;
+        }
+
+        return Digito(numeros, 9) == numeros[9] - '0' &&
+               Digito(numeros, 10) == numeros[10] - '0';
+    }
+
     public static string NormalizarCep(string? cep)
     {
         if (cep == null || !Regex.IsMatch(cep.Trim(), @"^\d{5}-?\d{3}$", RegexOptions.ECMAScript))
