@@ -68,6 +68,41 @@ namespace PegaVisaoApi.Controllers
             }
 
             // ==========================================
+            // VALIDA FORMA DE PAGAMENTO
+            // ==========================================
+
+            var formaPagamentoRecebida = dto.FormaPagamento?.Trim();
+
+            string formaPagamento;
+
+            if (string.Equals(
+                formaPagamentoRecebida,
+                "Pix",
+                StringComparison.OrdinalIgnoreCase))
+            {
+                formaPagamento = "Pix";
+            }
+            else if (
+                string.Equals(
+                    formaPagamentoRecebida,
+                    "Cartao",
+                    StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(
+                    formaPagamentoRecebida,
+                    "Cartão",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                formaPagamento = "Cartao";
+            }
+            else
+            {
+                return BadRequest(new
+                {
+                    mensagem = "Forma de pagamento inválida. Utilize Pix ou Cartao."
+                });
+            }
+
+            // ==========================================
             // CRIA PEDIDO
             // ==========================================
 
