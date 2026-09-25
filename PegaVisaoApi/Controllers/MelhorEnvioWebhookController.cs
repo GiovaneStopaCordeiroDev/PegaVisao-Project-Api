@@ -53,6 +53,16 @@ public sealed class MelhorEnvioWebhookController(
             !CryptographicOperations.FixedTimeEquals(recebida, esperada))
             return Unauthorized();
 
+        // O Melhor Envio faz uma chamada de verificação ao cadastrar o endpoint.
+        // Depois que a assinatura foi validada, cargas vazias ou sem o formato de
+        // um evento real devem ser apenas reconhecidas com 200 para o cadastro
+        // não falhar. Eventos reais continuam sendo processados abaixo.
+        if (string.IsNullOrWhiteSpace(corpo))
+        {
+            logger.LogInformation("Webhook Melhor Envio: verificação de endpoint recebida.");
+            return Ok();
+        }
+
         JsonDocument documento;
         try
         {
@@ -60,7 +70,8 @@ public sealed class MelhorEnvioWebhookController(
         }
         catch (JsonException)
         {
-            return BadRequest();
+            logger.LogInformation("Webhook Melhor Envio: carga de verificação sem JSON de evento.");
+            return Ok();
         }
 
         using (documento)
@@ -69,12 +80,18 @@ public sealed class MelhorEnvioWebhookController(
             if (!raiz.TryGetProperty("event", out var eventoProp) ||
                 !raiz.TryGetProperty("data", out var dados) ||
                 dados.ValueKind != JsonValueKind.Object)
-                return BadRequest();
+            {
+                logger.LogInformation("Webhook Melhor Envio: verificação reconhecida sem evento de etiqueta.");
+                return Ok();
+            }
 
             var evento = eventoProp.GetString();
             var orderId = dados.TryGetProperty("id", out var idProp) ? idProp.GetString() : null;
             if (string.IsNullOrWhiteSpace(orderId))
-                return BadRequest();
+            {
+                logger.LogInformation("Webhook Melhor Envio ignorado: evento sem identificador de etiqueta.");
+                return Ok();
+            }
 
             var pedido = await db.Pedidos.SingleOrDefaultAsync(
                 p => p.MelhorEnvioOrderId == orderId, ct);
