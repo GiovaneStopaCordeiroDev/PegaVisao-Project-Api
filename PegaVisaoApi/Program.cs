@@ -144,6 +144,23 @@ builder.Services.AddScoped<EstoqueService>();
 builder.Services.AddHostedService<EstoqueConciliacaoWorker>();
 var app = builder.Build();
 
+// Opt-in no deploy: executa migrations antes de atender requisições ou iniciar workers.
+if (builder.Configuration.GetValue<bool>("Database:AplicarMigrations"))
+{
+    await using var scope = app.Services.CreateAsyncScope();
+    var db = scope.ServiceProvider.GetRequiredService<PegaVisaoContext>();
+    await db.Database.OpenConnectionAsync();
+    try
+    {
+        // Serializa migrations de instâncias simultâneas do mesmo serviço.
+        await db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_lock(72409123)");
+        try { await db.Database.MigrateAsync(); }
+        finally { await db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_unlock(72409123)"); }
+        app.Logger.LogInformation("Migrations aplicadas; API pronta para iniciar.");
+    }
+    finally { await db.Database.CloseConnectionAsync(); }
+}
+
 // Configure the HTTP request pipeline.
 
 if (app.Environment.IsDevelopment())

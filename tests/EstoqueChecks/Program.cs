@@ -146,7 +146,7 @@ try
     await setup.Pedidos.Where(p => p.Id == cancelId)
         .ExecuteUpdateAsync(u => u.SetProperty(p => p.ExcluidoPeloCliente, true));
     await using var adminDb = Db();
-    var controller = new PegaVisaoApi.Controllers.AdminPedidosController(adminDb);
+    var controller = new PegaVisaoApi.Controllers.AdminPedidosController(adminDb, null!);
     async Task<JsonElement> Listar(string filtro, int pagina = 1, int tamanho = 20) {
         var response = await controller.Listar(filtro, pagina, tamanho);
         var ok = response as Microsoft.AspNetCore.Mvc.OkObjectResult

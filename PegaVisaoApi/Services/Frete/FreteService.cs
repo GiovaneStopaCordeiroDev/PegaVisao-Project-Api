@@ -90,7 +90,7 @@ public sealed class FreteService(PegaVisaoContext db, MelhorEnvioService conexao
         if (!string.IsNullOrWhiteSpace(pedido.CupomCodigo))
         {
             var (cupom, desconto) = await new CupomService(db).ValidarAsync(pedido.CupomCodigo,
-                carrinho.Sum(i => i.Preco * i.Quantidade), pedido.UsuarioId, true, ct);
+                carrinho, pedido.UsuarioId, true, ct);
             pedido.CupomId = cupom.Id;
             pedido.CupomCodigo = cupom.Codigo;
             pedido.ValorDesconto = desconto;

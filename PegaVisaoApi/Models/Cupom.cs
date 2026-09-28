@@ -12,6 +12,11 @@ public class Cupom
     public decimal? DescontoMaximo { get; set; }
     public DateTime InicioEm { get; set; }
     public DateTime ValidadeEm { get; set; }
+    public bool TodosProdutos { get; set; } = true;
+    [System.Text.Json.Serialization.JsonIgnore]
+    public List<CupomProduto> Produtos { get; set; } = new();
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+    public int[] ProdutoIds => Produtos.Select(p => p.ProdutoId).ToArray();
     public bool Ativo { get; set; } = true;
     public bool Excluido { get; set; }
     public int? LimiteTotal { get; set; }

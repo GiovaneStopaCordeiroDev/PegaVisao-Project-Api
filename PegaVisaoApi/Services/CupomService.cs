@@ -17,13 +17,24 @@ public sealed class CupomService(PegaVisaoContext db)
         desconto = Math.Min(desconto, cupom.DescontoMaximo ?? desconto);
         return decimal.Round(Math.Clamp(desconto, 0, subtotal), 2, MidpointRounding.AwayFromZero);
     }
-    public async Task<(Cupom Cupom, decimal Desconto)> ValidarAsync(string codigo, decimal subtotal, int usuarioId, bool bloquear, CancellationToken ct)
+    public async Task<(Cupom Cupom, decimal Desconto)> ValidarAsync(string codigo, IReadOnlyList<FreteItem> itens, int usuarioId, bool bloquear, CancellationToken ct)
     {
         codigo = Normalizar(codigo);
         var cupom = bloquear
             ? await db.Cupons.FromSqlInterpolated($"SELECT * FROM \"Cupons\" WHERE \"Codigo\" = {codigo} FOR UPDATE").SingleOrDefaultAsync(ct)
             : await db.Cupons.AsNoTracking().SingleOrDefaultAsync(c => c.Codigo == codigo, ct);
         if (cupom == null || cupom.Excluido) throw new FreteException(422, "Cupom inválido.");
+        var subtotal = itens.Sum(i => i.Preco * i.Quantidade);
+        if (!cupom.TodosProdutos)
+        {
+            var participantes = await db.Set<CupomProduto>().Where(p => p.CupomId == cupom.Id)
+                .Select(p => p.ProdutoId).ToListAsync(ct);
+            var variacoes = itens.Select(i => i.VariacaoId).ToArray();
+            var elegiveis = await db.VariacaoProdutos.Where(v => variacoes.Contains(v.Id) && participantes.Contains(v.ProdutoId))
+                .Select(v => v.Id).ToListAsync(ct);
+            subtotal = itens.Where(i => elegiveis.Contains(i.VariacaoId)).Sum(i => i.Preco * i.Quantidade);
+            if (subtotal <= 0) throw new FreteException(422, "Este cupom não se aplica aos produtos do carrinho.");
+        }
         var desconto = Calcular(cupom, subtotal, DateTime.UtcNow);
         var usos = db.Pedidos.Where(p => p.CupomId == cupom.Id && p.Status != Status.Cancelado);
         if (cupom.LimiteTotal.HasValue && await usos.CountAsync(ct) >= cupom.LimiteTotal ||

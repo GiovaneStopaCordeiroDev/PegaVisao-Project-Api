@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PegaVisaoApi.Data;
@@ -36,7 +36,8 @@ public sealed class AdminPedidosController(PegaVisaoContext db, MelhorEnvioEtiqu
                 p.Id, p.DataPedido, Status = p.Status.ToString(),
                 Cliente = new { p.Usuario.Nome, p.Usuario.Email },
                 p.FormaPagamento, p.ValorTotal, p.ValorFrete,
-                SubtotalProdutos = p.ValorTotal - p.ValorFrete,
+                p.CupomCodigo, p.ValorDesconto,
+                SubtotalProdutos = p.ValorTotal - p.ValorFrete + p.ValorDesconto,
                 p.FreteServico, p.FreteTransportadora, p.FretePrazoDias, p.FreteServicoId,
                 p.PagamentoExpiraEm, p.MelhorEnvioOrderId, p.MelhorEnvioEtiquetaStatus,
                 p.MelhorEnvioEtiquetaGeradaEm,

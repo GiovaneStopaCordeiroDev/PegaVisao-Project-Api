@@ -12,9 +12,16 @@
 
                 protected override void OnModelCreating(ModelBuilder modelBuilder)
                 {
+                    modelBuilder.Entity<CupomProduto>().HasKey(p => new { p.CupomId, p.ProdutoId });
+                    modelBuilder.Entity<CupomProduto>().HasOne(p => p.Cupom).WithMany(c => c.Produtos)
+                        .HasForeignKey(p => p.CupomId).OnDelete(DeleteBehavior.Cascade);
+                    modelBuilder.Entity<CupomProduto>().HasOne(p => p.Produto).WithMany()
+                        .HasForeignKey(p => p.ProdutoId).OnDelete(DeleteBehavior.Cascade);
+                    modelBuilder.Entity<Cupom>().Property(c => c.TodosProdutos).HasDefaultValue(true);
                     modelBuilder.Entity<Cupom>().HasIndex(c => c.Codigo).IsUnique();
                     modelBuilder.Entity<Cupom>().ToTable(t => t.HasCheckConstraint("CK_Cupom_Valores",
                         "\"Valor\" > 0 AND \"ValorMinimo\" >= 0 AND (\"Tipo\" = 'Fixo' OR (\"Tipo\" = 'Percentual' AND \"Valor\" <= 100))"));
+                    modelBuilder.Entity<Pedido>().HasIndex(p => p.MelhorEnvioOrderId);
                     modelBuilder.Entity<Pedido>().HasIndex(p => p.CheckoutSessionId).IsUnique();
                     modelBuilder.Entity<Pedido>().HasIndex(p => p.PaymentIdempotencyKey).IsUnique();
                     modelBuilder.Entity<Pedido>().HasOne(p => p.Cupom).WithMany().HasForeignKey(p => p.CupomId).OnDelete(DeleteBehavior.Restrict);
